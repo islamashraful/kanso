@@ -15,8 +15,7 @@ Bun, Express 5, TypeScript, PostgreSQL, Prisma, Redis. Deployed on AWS
 
 ## Documentation
 
-- [`docs/architecture.md`](docs/architecture.md) — how the system is structured and why
-- [`docs/adr/`](docs/adr/) — architecture decision records
+- [`docs/adr/`](docs/adr/) — architecture decision records: what was decided, and why
 
 ## License
 
