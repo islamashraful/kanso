@@ -32,9 +32,44 @@ Recorded in full in `docs/architecture.md`, with the reasoning behind each in
 
 ## Decisions
 
-New architectural decisions go in `docs/adr/` using the Nygard format, written
-the day the decision is made. Never edit an accepted ADR; supersede it with a
-new one.
+New architectural decisions go in `docs/adr/`, written the day the decision is
+made rather than reconstructed later.
+
+- **Nygard format only** — Context, Decision, Consequences. One page.
+- **Name the rejected alternative.** A record without one is not a decision,
+  it is a description. If nothing was seriously considered and set aside, it
+  does not need an ADR.
+- **State the costs**, not only the benefits. What gets harder, what this
+  commits the project to, and anything left unverified.
+- **Impersonal voice.** "Use Bun as the runtime", not "we use Bun" or "I chose
+  Bun". Decision sections read as imperatives; Context and Consequences are
+  plain descriptive prose.
+- **Cross-link** related records where the reasoning actually connects.
+- **Never edit an accepted record.** Supersede it with a new one and mark the
+  old `Superseded by [N]`.
+- Update the table in `docs/adr/README.md` when adding one.
+
+## Writing
+
+Applies to every document in this repo, including the README.
+
+- Write for an engineer reading the code, not a user deciding whether to adopt
+  it. No adoption pitch, no feature marketing.
+- Plain declaratives. Say what is true and stop.
+- No superlatives or filler: avoid "seamlessly", "powerful", "robust",
+  "simply", "just", "easily", "blazing fast". If a claim is worth making, it
+  is worth a number or a reason.
+- Don't hedge into vagueness. "Socket.IO support on Bun is not documented" is
+  better than "there may be some potential compatibility considerations".
+- `docs/architecture.md` says what the system *is*, in present tense. ADRs say
+  *why it became that*. Neither restates the other; `architecture.md` links
+  out.
+- Em dashes are fine.
+
+## Commits
+
+Imperative subject line. The body explains why, not what — the diff already
+covers what.
 
 ## Verify
 
