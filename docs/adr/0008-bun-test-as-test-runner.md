@@ -42,8 +42,10 @@ mocks the database cannot prove a query is correctly scoped. The cost is that
 tests need a running database, so the suite is slower than pure unit tests and
 depends on Docker Compose being up.
 
-Separating `createApp()` from `server.ts` is what makes this cheap — tests
-build an app in-process with no port binding and no teardown races.
+Separating `createApp()` from `server.ts` is what makes this cheap. Each test
+file builds its own app instance and hands it to Supertest, which binds an
+ephemeral OS-assigned port per request and closes it again. No fixed port to
+collide on, no shared server, and no lifecycle for the test to manage.
 
 The ecosystem risk is shared with ADR-2: tooling that assumes Jest or Vitest
 internals may not work. Nothing in the test suite depends on runner internals,
