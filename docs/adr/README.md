@@ -6,7 +6,8 @@ written and are immutable once accepted: if a decision is reversed, a new
 record supersedes the old one rather than editing it.
 
 Format is [Michael Nygard's](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions):
-context, decision, consequences. See [`0000-template.md`](0000-template.md).
+context, decision, consequences. See [`0000-template.md`](0000-template.md)
+for the shape and [`../writing.md`](../writing.md) for the conventions.
 
 | # | Decision | Status |
 |---|----------|--------|
