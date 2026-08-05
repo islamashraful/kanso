@@ -10,8 +10,7 @@ the Prisma CLI runs via `bunx --bun`.
 
 ## Conventions
 
-Recorded in full in `docs/architecture.md`, with the reasoning behind each in
-`docs/adr/`. The load-bearing ones:
+The reasoning behind each is in `docs/adr/`. The load-bearing ones:
 
 - Three-tier layering: router → controller → service → data access.
   **`req` and `res` never leave the controller.** Services take plain
