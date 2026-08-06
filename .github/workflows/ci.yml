@@ -36,7 +36,7 @@ jobs:
       DATABASE_URL: postgresql://kanso:kanso@localhost:5432/kanso_test
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: oven-sh/setup-bun@v2
         with:
