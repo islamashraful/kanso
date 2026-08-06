@@ -1,0 +1,28 @@
+/**
+ * Application errors.
+ *
+ * `isOperational` separates failures the application anticipates (a missing
+ * record, a forbidden action) from genuine bugs. Operational errors return
+ * their message to the client; anything else returns a generic 500 while the
+ * detail goes to the logs. See docs/adr/0006.
+ */
+export class AppError extends Error {
+  readonly status: number;
+  /** Stable, machine-readable identifier clients can branch on. */
+  readonly code: string;
+  readonly isOperational = true;
+
+  constructor(status: number, code: string, message: string) {
+    super(message);
+    this.name = new.target.name;
+    this.status = status;
+    this.code = code;
+    Error.captureStackTrace(this, new.target);
+  }
+}
+
+export class NotFoundError extends AppError {
+  constructor(message = 'Not found') {
+    super(404, 'NOT_FOUND', message);
+  }
+}
