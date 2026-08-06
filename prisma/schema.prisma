@@ -1,0 +1,65 @@
+// Datasource URL is configured in prisma.config.ts.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+  runtime  = "bun"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// A person. Users exist independently of organizations and reach data only
+/// through a Membership.
+model User {
+  id           String   @id @default(uuid(7))
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships Membership[]
+
+  @@map("users")
+}
+
+/// A tenant. Every domain record below this belongs to exactly one
+/// organization, and every query is scoped by it. See docs/adr/0007.
+model Organization {
+  id        String   @id @default(uuid(7))
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships Membership[]
+
+  @@map("organizations")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+/// Join table carrying the user's role within one organization. The unique
+/// constraint on (userId, organizationId) is what makes "one membership per
+/// user per org" a database guarantee rather than an application convention.
+model Membership {
+  id             String   @id @default(uuid(7))
+  userId         String
+  organizationId String
+  role           Role     @default(MEMBER)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@map("memberships")
+}

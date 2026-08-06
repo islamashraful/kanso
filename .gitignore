@@ -2,8 +2,6 @@ node_modules/
 dist/
 coverage/
 
-# Prisma's generated client (generator output = "./generated")
-prisma/generated/
 
 .env
 .env.*
@@ -20,3 +18,5 @@ npm-debug.log*
 # Local-only notes, never committed
 CLAUDE.local.md
 scratch/
+
+/src/generated/prisma
