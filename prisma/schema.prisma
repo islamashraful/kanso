@@ -35,8 +35,31 @@ model Organization {
   updatedAt DateTime @updatedAt
 
   memberships Membership[]
+  tasks       Task[]
 
   @@map("organizations")
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+}
+
+/// A unit of work, owned by exactly one organization. The organizationId is
+/// not optional and every query filters on it.
+model Task {
+  id             String     @id @default(uuid(7))
+  organizationId String
+  title          String
+  status         TaskStatus @default(OPEN)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("tasks")
 }
 
 enum Role {

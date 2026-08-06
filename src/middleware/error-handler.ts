@@ -1,12 +1,13 @@
 import type { ErrorRequestHandler } from 'express';
 
 import type { Config } from '@/config';
-import { AppError } from '@/lib/errors';
+import { AppError, ValidationError } from '@/lib/errors';
 
 interface ErrorBody {
   error: {
     code: string;
     message: string;
+    details?: { path: string; message: string }[];
     stack?: string;
   };
 }
@@ -25,6 +26,9 @@ export const createErrorHandler = (config: Config): ErrorRequestHandler => {
   return (err, _req, res, _next) => {
     if (err instanceof AppError) {
       const body: ErrorBody = { error: { code: err.code, message: err.message } };
+      if (err instanceof ValidationError) {
+        body.error.details = err.details;
+      }
       res.status(err.status).json(body);
       return;
     }

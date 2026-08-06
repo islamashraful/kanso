@@ -19,3 +19,4 @@ for the shape and [`../writing.md`](../writing.md) for the conventions.
 | [6](0006-centralized-error-handling.md) | Centralized error handling | Accepted |
 | [7](0007-multi-tenant-with-org-scoped-queries.md) | Multi-tenant with org-scoped queries | Accepted |
 | [8](0008-bun-test-as-test-runner.md) | `bun test` as the test runner | Accepted |
+| [9](0009-integration-tests-against-a-real-database.md) | Integration tests against a real, separate database | Accepted |

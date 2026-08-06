@@ -9,16 +9,22 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test": "bun test",
+    "db:generate": "bunx --bun prisma generate",
+    "db:migrate": "bunx --bun prisma migrate dev",
+    "db:migrate:test": "DATABASE_URL=postgresql://kanso:kanso@localhost:5432/kanso_test bunx --bun prisma migrate deploy"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/bun": "latest",
     "@types/express": "^5.0.6",
+    "@types/supertest": "^7.2.1",
     "eslint": "^10.8.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.9.6",
     "prisma": "^7.9.1",
+    "supertest": "^7.2.2",
     "typescript-eslint": "^8.66.0"
   },
   "peerDependencies": {

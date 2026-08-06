@@ -1,7 +1,9 @@
 import { createApp } from '@/app';
 import { config } from '@/config';
+import { createDb } from '@/lib/db';
 
-const app = createApp({ config });
+const db = createDb(config);
+const app = createApp({ config, db });
 
 const server = app.listen(config.PORT, () => {
   console.log(`kanso listening on http://localhost:${config.PORT} (${config.NODE_ENV})`);

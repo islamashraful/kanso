@@ -26,3 +26,26 @@ export class NotFoundError extends AppError {
     super(404, 'NOT_FOUND', message);
   }
 }
+
+/** No usable credentials were presented. */
+export class UnauthorizedError extends AppError {
+  constructor(message = 'Authentication required') {
+    super(401, 'UNAUTHORIZED', message);
+  }
+}
+
+/** Credentials were valid, but they do not permit this. */
+export class ForbiddenError extends AppError {
+  constructor(message = 'Forbidden') {
+    super(403, 'FORBIDDEN', message);
+  }
+}
+
+export class ValidationError extends AppError {
+  readonly details: { path: string; message: string }[];
+
+  constructor(details: { path: string; message: string }[]) {
+    super(400, 'VALIDATION_ERROR', 'Request validation failed');
+    this.details = details;
+  }
+}
