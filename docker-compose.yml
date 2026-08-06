@@ -1,0 +1,22 @@
+# Local development dependencies. Credentials here are local-only and
+# deliberately plain; production values come from Secrets Manager.
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kanso
+      POSTGRES_PASSWORD: kanso
+      POSTGRES_DB: kanso
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U kanso -d kanso']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres-data:

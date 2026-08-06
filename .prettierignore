@@ -1,0 +1,8 @@
+node_modules
+prisma/generated
+coverage
+bun.lock
+
+# Docs are hand-wrapped; Prettier's markdown rules fight the prose formatting
+# and reflow code samples inside ADRs.
+*.md
