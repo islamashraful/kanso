@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push makes an in-flight run irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    # Integration tests run against real Postgres (docs/adr/0009). Locally that
+    # is Docker Compose; here it is a service container. The database is named
+    # kanso_test directly, since CI has no development database to keep apart.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: kanso
+          POSTGRES_PASSWORD: kanso
+          POSTGRES_DB: kanso_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kanso -d kanso_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://kanso:kanso@localhost:5432/kanso_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.2
+
+      - run: bun install --frozen-lockfile
+
+      # The generated client is gitignored, so it does not exist on a fresh
+      # checkout. Typecheck and type-aware lint both need it, so this runs
+      # before either.
+      - name: Generate Prisma client
+        run: bunx --bun prisma generate
+
+      - name: Apply migrations
+        run: bunx --bun prisma migrate deploy
+
+      - run: bun run lint
+
+      - run: bun run typecheck
+
+      - run: bun run format:check
+
+      - run: bun test
