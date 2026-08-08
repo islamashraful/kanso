@@ -1,70 +1,24 @@
 import { afterAll, beforeEach, describe, expect, it } from 'bun:test';
 import request from 'supertest';
 
-import { createApp } from '@/app';
-import { config } from '@/config';
-import { createDb } from '@/lib/db';
+import { app, asUser, db, json, resetDatabase, seed } from '@/test/support';
+import type { ErrorResponse } from '@/test/support';
 
-const db = createDb(config);
-const app = createApp({ config, db });
-
-/** Two organizations, so cross-tenant access can actually be tested. */
-const seed = async () => {
-  const [acme, globex] = await Promise.all([
-    db.organization.create({ data: { name: 'Acme', slug: 'acme' } }),
-    db.organization.create({ data: { name: 'Globex', slug: 'globex' } }),
-  ]);
-  const [ada, bob] = await Promise.all([
-    db.user.create({ data: { email: 'ada@test.local', name: 'Ada', passwordHash: 'x' } }),
-    db.user.create({ data: { email: 'bob@test.local', name: 'Bob', passwordHash: 'x' } }),
-  ]);
-  await db.membership.createMany({
-    data: [
-      { userId: ada.id, organizationId: acme.id, role: 'OWNER' },
-      { userId: bob.id, organizationId: globex.id, role: 'MEMBER' },
-    ],
-  });
-  return { acme, globex, ada, bob };
-};
-
-/**
- * Supertest types `res.body` as `any`. Naming the expected shape keeps the
- * strict lint rules on and doubles as a written record of the API contract.
- */
 interface ProjectResponse {
   id: string;
   name: string;
   organizationId: string;
 }
 
-interface ErrorResponse {
-  error: {
-    code: string;
-    message: string;
-    details?: { path: string; message: string }[];
-  };
-}
-
-const json = <T>(res: { body: unknown }): T => res.body as T;
-
-const asUser = (userId: string, organizationId: string) => ({
-  'x-user-id': userId,
-  'x-org-id': organizationId,
-});
-
 let fixtures: Awaited<ReturnType<typeof seed>>;
 
 beforeEach(async () => {
-  // Organizations cascade to memberships, projects and tasks; users cascade to
-  // memberships. Deleting both leaves an empty database.
-  await db.organization.deleteMany();
-  await db.user.deleteMany();
+  await resetDatabase();
   fixtures = await seed();
 });
 
 afterAll(async () => {
-  await db.organization.deleteMany();
-  await db.user.deleteMany();
+  await resetDatabase();
   await db.$disconnect();
 });
 
@@ -72,7 +26,7 @@ describe('POST /api/v1/projects', () => {
   it('creates a project in the caller organization', async () => {
     const res = await request(app)
       .post('/api/v1/projects')
-      .set(asUser(fixtures.ada.id, fixtures.acme.id))
+      .set(asUser(fixtures.ada, fixtures.acme.id))
       .send({ name: 'Platform' });
 
     expect(res.status).toBe(201);
@@ -82,7 +36,7 @@ describe('POST /api/v1/projects', () => {
   it('rejects a missing name with a field-level message', async () => {
     const res = await request(app)
       .post('/api/v1/projects')
-      .set(asUser(fixtures.ada.id, fixtures.acme.id))
+      .set(asUser(fixtures.ada, fixtures.acme.id))
       .send({ name: '   ' });
 
     expect(res.status).toBe(400);
@@ -94,7 +48,7 @@ describe('POST /api/v1/projects', () => {
   it('ignores an organizationId supplied by the client', async () => {
     const res = await request(app)
       .post('/api/v1/projects')
-      .set(asUser(fixtures.ada.id, fixtures.acme.id))
+      .set(asUser(fixtures.ada, fixtures.acme.id))
       .send({ name: 'Sneaky', organizationId: fixtures.globex.id });
 
     expect(res.status).toBe(201);
@@ -104,14 +58,11 @@ describe('POST /api/v1/projects', () => {
 
 describe('GET /api/v1/projects', () => {
   it('returns only the caller organization projects', async () => {
-    await Promise.all([
-      db.project.create({ data: { organizationId: fixtures.acme.id, name: 'Acme project' } }),
-      db.project.create({ data: { organizationId: fixtures.globex.id, name: 'Globex project' } }),
-    ]);
-
+    // The seed already gives each organization one project, which is the whole
+    // point here: Globex's must not appear.
     const res = await request(app)
       .get('/api/v1/projects')
-      .set(asUser(fixtures.ada.id, fixtures.acme.id));
+      .set(asUser(fixtures.ada, fixtures.acme.id));
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
@@ -127,20 +78,16 @@ describe('GET /api/v1/projects/:id', () => {
 
     const res = await request(app)
       .get(`/api/v1/projects/${project.id}`)
-      .set(asUser(fixtures.ada.id, fixtures.acme.id));
+      .set(asUser(fixtures.ada, fixtures.acme.id));
 
     expect(res.status).toBe(200);
     expect(json<ProjectResponse>(res).id).toBe(project.id);
   });
 
   it('returns 404, not 403, for a project in another organization', async () => {
-    const globexProject = await db.project.create({
-      data: { organizationId: fixtures.globex.id, name: 'Globex project' },
-    });
-
     const res = await request(app)
-      .get(`/api/v1/projects/${globexProject.id}`)
-      .set(asUser(fixtures.ada.id, fixtures.acme.id));
+      .get(`/api/v1/projects/${fixtures.globexProject.id}`)
+      .set(asUser(fixtures.ada, fixtures.acme.id));
 
     expect(res.status).toBe(404);
     expect(json<ErrorResponse>(res).error.code).toBe('NOT_FOUND');

@@ -1,27 +1,37 @@
 import type { RequestHandler } from 'express';
 
 import type { Db } from '@/lib/db';
-import { ForbiddenError, UnauthorizedError } from '@/lib/errors';
+import { ForbiddenError, UnauthorizedError, ValidationError } from '@/lib/errors';
+import type { Tokens } from '@/lib/tokens';
 
 /**
  * Resolves the caller and the organization they are acting in.
  *
- * TEMPORARY: identity comes from an `x-user-id` header. JWT verification
- * replaces that lookup later in week 1; nothing downstream changes, because
- * controllers and services only ever read `req.auth`.
- *
- * The organization is named by the client via `x-org-id`, but is only trusted
- * once a membership row proves the caller belongs to it. That check is the
- * whole point: without it, any caller could read any tenant's data by naming
- * a different organization. See docs/adr/0007.
+ * Identity comes from a signed access token; authorization does not. The
+ * organization is named by the client via `x-org-id` and is only trusted once a
+ * membership row proves the caller belongs to it, on every request. Keeping the
+ * organization and role out of the token is what makes a removal or a demotion
+ * take effect immediately rather than whenever the token expires.
+ * See docs/adr/0007 and docs/adr/0011.
  */
-export const createRequireAuth = (db: Db): RequestHandler => {
+export const createRequireAuth = (db: Db, tokens: Tokens): RequestHandler => {
   return async (req, _res, next) => {
-    const userId = req.get('x-user-id');
+    const header = req.get('authorization');
+    const [scheme, token] = header?.split(' ') ?? [];
+
+    if (scheme?.toLowerCase() !== 'bearer' || !token) {
+      throw new UnauthorizedError('Missing bearer token');
+    }
+
+    const { sub: userId } = await tokens.verifyAccessToken(token);
+
     const organizationId = req.get('x-org-id');
 
-    if (!userId || !organizationId) {
-      throw new UnauthorizedError('Missing x-user-id or x-org-id');
+    // A valid token with no organization named is not an authentication
+    // failure: the caller proved who they are and simply did not say which
+    // tenant they are acting in. That is a malformed request, so 400.
+    if (!organizationId) {
+      throw new ValidationError([{ path: 'headers.x-org-id', message: 'Required' }]);
     }
 
     const membership = await db.membership.findUnique({

@@ -20,9 +20,29 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  memberships Membership[]
+  memberships   Membership[]
+  refreshTokens RefreshToken[]
 
   @@map("users")
+}
+
+/// One issued refresh token. Only the hash is stored: the database is the most
+/// likely place a token leaks from, and a hash there cannot be replayed. Rows
+/// are kept after use rather than deleted, so a rotated token presented a
+/// second time is recognisable as reuse rather than merely unknown.
+/// See docs/adr/0011.
+model RefreshToken {
+  id        String    @id @default(uuid(7))
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
 }
 
 /// A tenant. Every domain record below this belongs to exactly one

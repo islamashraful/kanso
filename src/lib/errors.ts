@@ -41,6 +41,13 @@ export class ForbiddenError extends AppError {
   }
 }
 
+/** The request is valid but conflicts with existing state. */
+export class ConflictError extends AppError {
+  constructor(message = 'Conflict') {
+    super(409, 'CONFLICT', message);
+  }
+}
+
 export class ValidationError extends AppError {
   readonly details: { path: string; message: string }[];
 

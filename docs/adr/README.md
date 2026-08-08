@@ -21,3 +21,4 @@ for the shape and [`../writing.md`](../writing.md) for the conventions.
 | [8](0008-bun-test-as-test-runner.md) | `bun test` as the test runner | Accepted |
 | [9](0009-integration-tests-against-a-real-database.md) | Integration tests against a real, separate database | Accepted |
 | [10](0010-tasks-carry-organization-and-project.md) | Tasks carry both project and organization | Accepted |
+| [11](0011-authenticate-with-jwt-authorize-from-the-database.md) | Authenticate with JWT, authorize from the database | Accepted |

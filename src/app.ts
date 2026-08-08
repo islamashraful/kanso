@@ -4,7 +4,10 @@ import type { Config } from '@/config';
 import type { Db } from '@/lib/db';
 import { createErrorHandler } from '@/middleware/error-handler';
 import { notFound } from '@/middleware/not-found';
+import { createTokens } from '@/lib/tokens';
 import { createRequireAuth } from '@/middleware/require-auth';
+import { createAuthRouter } from '@/modules/auth/auth.routes';
+import { createAuthService } from '@/modules/auth/auth.service';
 import { createProjectsRouter } from '@/modules/projects/projects.routes';
 import { createProjectsService } from '@/modules/projects/projects.service';
 import { createTasksRouter } from '@/modules/tasks/tasks.routes';
@@ -35,11 +38,17 @@ export const createApp = (deps: Deps): Express => {
 
   app.use(express.json({ limit: '100kb' }));
 
-  const requireAuth = createRequireAuth(deps.db);
+  const tokens = createTokens(deps.config);
+  const requireAuth = createRequireAuth(deps.db, tokens);
+
+  const authService = createAuthService(deps.db, tokens, deps.config);
   const projectsService = createProjectsService(deps.db);
   const tasksService = createTasksService(deps.db);
 
   const v1 = express.Router();
+  // Mounted without requireAuth: these endpoints issue the credentials the
+  // others demand.
+  v1.use('/auth', createAuthRouter(authService));
   v1.use('/projects', requireAuth, createProjectsRouter(projectsService));
   v1.use('/tasks', requireAuth, createTasksRouter(tasksService));
 
