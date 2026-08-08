@@ -18,6 +18,11 @@ declare global {
   namespace Express {
     interface Request {
       auth?: AuthContext;
+      /**
+       * The caller, identified but not yet placed in an organization. Set by
+       * `requireUser` on the routes that run before a membership exists.
+       */
+      user?: { id: string };
       /** Output of the `validate` middleware. Never overwrites `req.query`, which is a getter in Express 5. */
       validated?: {
         body?: unknown;

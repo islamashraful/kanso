@@ -79,6 +79,14 @@ export const asUser = (user: SeededUser, organizationId: string) => ({
 });
 
 /**
+ * Identity alone, with no organization named. For the routes guarded by
+ * `requireUser`, where the caller may not belong to one yet.
+ */
+export const asIdentity = (user: SeededUser) => ({
+  authorization: `Bearer ${user.accessToken}`,
+});
+
+/**
  * Organizations cascade to memberships, projects and tasks; users cascade to
  * memberships and refresh tokens. Deleting both leaves an empty database.
  */

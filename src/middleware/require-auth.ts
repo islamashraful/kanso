@@ -1,8 +1,10 @@
 import type { RequestHandler } from 'express';
 
 import type { Db } from '@/lib/db';
-import { ForbiddenError, UnauthorizedError, ValidationError } from '@/lib/errors';
+import { ForbiddenError, ValidationError } from '@/lib/errors';
 import type { Tokens } from '@/lib/tokens';
+
+import { authenticate } from './require-user';
 
 /**
  * Resolves the caller and the organization they are acting in.
@@ -16,14 +18,7 @@ import type { Tokens } from '@/lib/tokens';
  */
 export const createRequireAuth = (db: Db, tokens: Tokens): RequestHandler => {
   return async (req, _res, next) => {
-    const header = req.get('authorization');
-    const [scheme, token] = header?.split(' ') ?? [];
-
-    if (scheme?.toLowerCase() !== 'bearer' || !token) {
-      throw new UnauthorizedError('Missing bearer token');
-    }
-
-    const { sub: userId } = await tokens.verifyAccessToken(token);
+    const userId = await authenticate(req, tokens);
 
     const organizationId = req.get('x-org-id');
 

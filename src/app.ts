@@ -6,8 +6,11 @@ import { createErrorHandler } from '@/middleware/error-handler';
 import { notFound } from '@/middleware/not-found';
 import { createTokens } from '@/lib/tokens';
 import { createRequireAuth } from '@/middleware/require-auth';
+import { createRequireUser } from '@/middleware/require-user';
 import { createAuthRouter } from '@/modules/auth/auth.routes';
 import { createAuthService } from '@/modules/auth/auth.service';
+import { createOrganizationsRouter } from '@/modules/organizations/organizations.routes';
+import { createOrganizationsService } from '@/modules/organizations/organizations.service';
 import { createProjectsRouter } from '@/modules/projects/projects.routes';
 import { createProjectsService } from '@/modules/projects/projects.service';
 import { createTasksRouter } from '@/modules/tasks/tasks.routes';
@@ -40,8 +43,10 @@ export const createApp = (deps: Deps): Express => {
 
   const tokens = createTokens(deps.config);
   const requireAuth = createRequireAuth(deps.db, tokens);
+  const requireUser = createRequireUser(tokens);
 
   const authService = createAuthService(deps.db, tokens, deps.config);
+  const organizationsService = createOrganizationsService(deps.db);
   const projectsService = createProjectsService(deps.db);
   const tasksService = createTasksService(deps.db);
 
@@ -49,6 +54,9 @@ export const createApp = (deps: Deps): Express => {
   // Mounted without requireAuth: these endpoints issue the credentials the
   // others demand.
   v1.use('/auth', createAuthRouter(authService));
+  // requireUser, not requireAuth: creating or listing organizations is what a
+  // caller does before they have one to be scoped to. See docs/adr/0012.
+  v1.use('/organizations', requireUser, createOrganizationsRouter(organizationsService));
   v1.use('/projects', requireAuth, createProjectsRouter(projectsService));
   v1.use('/tasks', requireAuth, createTasksRouter(tasksService));
 
