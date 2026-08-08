@@ -40,11 +40,11 @@ export const createTasksService = (db: Db) => ({
   },
 
   async create(organizationId: string, input: CreateTaskInput): Promise<Task> {
-    // The composite foreign key already refuses a project from another
-    // organization (docs/adr/0010), but it refuses it as a Postgres constraint
-    // violation, which reaches the client as a 500. Checking first turns the
-    // ordinary case — a wrong or foreign project id — into a 404, and leaves
-    // the constraint as the backstop for anything this check misses.
+    // The composite foreign key is what guarantees a task and its project
+    // agree (docs/adr/0010), but it reports a mismatch as a constraint
+    // violation, which reaches the client as a 500. Looking the project up
+    // first turns the ordinary case — a wrong or foreign project id — into a
+    // 404. It shapes the error; it is not the guarantee.
     const project = await db.project.findFirst({
       where: { id: input.projectId, organizationId },
       select: { id: true },

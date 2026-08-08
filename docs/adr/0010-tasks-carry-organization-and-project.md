@@ -90,9 +90,10 @@ mistake, but the foreign key reports it as a constraint violation, which the
 error middleware reads as a bug and returns as a 500
 ([ADR-6](0006-centralized-error-handling.md)). So `tasks.create` looks the
 project up scoped to the organization first and throws `NotFoundError`,
-matching the 404 that reading a foreign project already returns. That keeps the
-constraint as the backstop rather than the mechanism, which is only worth
-claiming if it is tested. `src/modules/projects/projects.routes.test.ts` writes
+matching the 404 that reading a foreign project already returns. The lookup is
+not atomic and is not the guarantee; it only shapes the error. The constraint
+remains the enforcement, which is only worth claiming if it is tested.
+`src/modules/projects/projects.routes.test.ts` writes
 a mismatched pair through the Prisma client, bypassing the service and its
 lookup, and asserts Postgres refuses it: a `P2003` foreign key violation naming
 the `tasks_projectId_organizationId_fkey` constraint.
