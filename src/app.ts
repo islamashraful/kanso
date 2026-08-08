@@ -5,6 +5,8 @@ import type { Db } from '@/lib/db';
 import { createErrorHandler } from '@/middleware/error-handler';
 import { notFound } from '@/middleware/not-found';
 import { createRequireAuth } from '@/middleware/require-auth';
+import { createProjectsRouter } from '@/modules/projects/projects.routes';
+import { createProjectsService } from '@/modules/projects/projects.service';
 import { createTasksRouter } from '@/modules/tasks/tasks.routes';
 import { createTasksService } from '@/modules/tasks/tasks.service';
 
@@ -34,9 +36,11 @@ export const createApp = (deps: Deps): Express => {
   app.use(express.json({ limit: '100kb' }));
 
   const requireAuth = createRequireAuth(deps.db);
+  const projectsService = createProjectsService(deps.db);
   const tasksService = createTasksService(deps.db);
 
   const v1 = express.Router();
+  v1.use('/projects', requireAuth, createProjectsRouter(projectsService));
   v1.use('/tasks', requireAuth, createTasksRouter(tasksService));
 
   app.use('/api/v1', v1);

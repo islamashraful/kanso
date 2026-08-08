@@ -19,7 +19,11 @@ import type { CreateTaskInput, ListTasksQuery } from './tasks.schema';
 export const createTasksService = (db: Db) => ({
   async list(organizationId: string, query: ListTasksQuery): Promise<Task[]> {
     return db.task.findMany({
-      where: { organizationId, ...(query.status ? { status: query.status } : {}) },
+      where: {
+        organizationId,
+        ...(query.status ? { status: query.status } : {}),
+        ...(query.projectId ? { projectId: query.projectId } : {}),
+      },
       orderBy: { createdAt: 'desc' },
     });
   },
@@ -36,8 +40,25 @@ export const createTasksService = (db: Db) => ({
   },
 
   async create(organizationId: string, input: CreateTaskInput): Promise<Task> {
+    // The composite foreign key already refuses a project from another
+    // organization (docs/adr/0010), but it refuses it as a Postgres constraint
+    // violation, which reaches the client as a 500. Checking first turns the
+    // ordinary case — a wrong or foreign project id — into a 404, and leaves
+    // the constraint as the backstop for anything this check misses.
+    const project = await db.project.findFirst({
+      where: { id: input.projectId, organizationId },
+      select: { id: true },
+    });
+
+    if (!project) throw new NotFoundError('Project not found');
+
     return db.task.create({
-      data: { organizationId, title: input.title, status: input.status },
+      data: {
+        organizationId,
+        projectId: input.projectId,
+        title: input.title,
+        status: input.status,
+      },
     });
   },
 });

@@ -20,4 +20,4 @@ for the shape and [`../writing.md`](../writing.md) for the conventions.
 | [7](0007-multi-tenant-with-org-scoped-queries.md) | Multi-tenant with org-scoped queries | Accepted |
 | [8](0008-bun-test-as-test-runner.md) | `bun test` as the test runner | Accepted |
 | [9](0009-integration-tests-against-a-real-database.md) | Integration tests against a real, separate database | Accepted |
-| [10](0010-tasks-carry-organization-and-project.md) | Tasks carry both project and organization | Proposed |
+| [10](0010-tasks-carry-organization-and-project.md) | Tasks carry both project and organization | Accepted |

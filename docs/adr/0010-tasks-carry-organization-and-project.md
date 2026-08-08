@@ -1,7 +1,7 @@
 # 10. Give tasks a project, and keep the organization on the task itself
 
 Date: 2026-08-06
-Status: Proposed
+Status: Accepted
 
 ## Context
 
@@ -76,9 +76,26 @@ that forgets this record exists. That is the same reason constraints live in the
 database elsewhere in this schema
 ([ADR-7](0007-multi-tenant-with-org-scoped-queries.md)).
 
-The cost is a wider foreign key and a column that is derivable in principle.
-Anyone reading the schema may reasonably ask why the organization appears twice;
-the composite reference is the answer, and it is worth a comment at the model.
+The cost is a wider foreign key, a column that is derivable in principle, and
+the index behind the composite unique, which duplicates what the primary key
+already covers. Nothing else needed special handling: Prisma took
+`organizationId` backing two relations at once, the direct one to
+`Organization` and the composite one to `Project`, without complaint. Anyone
+reading the schema may reasonably ask why the organization appears twice; the
+composite reference is the answer, and it is worth a comment at the model.
+
+The constraint's failure mode has to be handled rather than left to surface. A
+task created against another organization's project is an ordinary client
+mistake, but the foreign key reports it as a constraint violation, which the
+error middleware reads as a bug and returns as a 500
+([ADR-6](0006-centralized-error-handling.md)). So `tasks.create` looks the
+project up scoped to the organization first and throws `NotFoundError`,
+matching the 404 that reading a foreign project already returns. That keeps the
+constraint as the backstop rather than the mechanism, which is only worth
+claiming if it is tested. `src/modules/projects/projects.routes.test.ts` writes
+a mismatched pair through the Prisma client, bypassing the service and its
+lookup, and asserts Postgres refuses it: a `P2003` foreign key violation naming
+the `tasks_projectId_organizationId_fkey` constraint.
 
 Moving a task between projects now means moving it within one organization, or
 updating both columns together. Cross-organization moves are rejected by the

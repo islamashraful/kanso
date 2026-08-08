@@ -35,9 +35,29 @@ model Organization {
   updatedAt DateTime @updatedAt
 
   memberships Membership[]
+  projects    Project[]
   tasks       Task[]
 
   @@map("organizations")
+}
+
+/// A container for tasks, owned by exactly one organization. The unique on
+/// (id, organizationId) is redundant on its own — id is already unique — and
+/// exists so Task can reference the pair rather than the id alone. See
+/// docs/adr/0010.
+model Project {
+  id             String   @id @default(uuid(7))
+  organizationId String
+  name           String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tasks        Task[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId])
+  @@map("projects")
 }
 
 enum TaskStatus {
@@ -46,19 +66,24 @@ enum TaskStatus {
   DONE
 }
 
-/// A unit of work, owned by exactly one organization. The organizationId is
-/// not optional and every query filters on it.
+/// A unit of work, owned by exactly one organization and belonging to one
+/// project. The organizationId is stored on the task rather than reached
+/// through the project, so every query filters on it directly; the composite
+/// foreign key below is what stops the two from disagreeing. See docs/adr/0010.
 model Task {
   id             String     @id @default(uuid(7))
   organizationId String
+  projectId      String
   title          String
   status         TaskStatus @default(OPEN)
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project      @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
 
   @@index([organizationId])
+  @@index([projectId, organizationId])
   @@map("tasks")
 }
 

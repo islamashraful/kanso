@@ -10,11 +10,13 @@ import { z } from 'zod';
  */
 export const createTaskSchema = z.object({
   title: z.string().trim().min(1, 'Title is required').max(200),
+  projectId: z.uuid('Not a valid project id'),
   status: z.enum(['OPEN', 'IN_PROGRESS', 'DONE']).default('OPEN'),
 });
 
 export const listTasksSchema = z.object({
   status: z.enum(['OPEN', 'IN_PROGRESS', 'DONE']).optional(),
+  projectId: z.uuid('Not a valid project id').optional(),
 });
 
 export const taskParamsSchema = z.object({
