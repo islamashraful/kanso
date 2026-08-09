@@ -53,6 +53,7 @@ bun test                         # needs Docker running
 
 ## Documentation
 
+- [`docs/architecture.md`](docs/architecture.md) — how the system is put together
 - [`docs/adr/`](docs/adr/) — architecture decision records: what was decided, and why
 - [`docs/writing.md`](docs/writing.md) — documentation conventions
 
