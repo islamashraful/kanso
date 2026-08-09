@@ -4,9 +4,9 @@ A multi-tenant task and project management API.
 
 **Kanso** (簡素) is the Japanese design principle of simplicity through elimination.
 
-> Early development. This README will grow into the real thing: architecture
-> diagram, ER diagram, auth flow, demo credentials, and links to the live
-> deployment and API reference.
+> Early development. Nothing is deployed yet, and there is no hosted API
+> reference. [`docs/architecture.md`](docs/architecture.md) describes how the
+> system is put together in the meantime.
 
 ## Stack
 
