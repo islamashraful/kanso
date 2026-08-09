@@ -35,5 +35,8 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*.ts"]
+  // The seed and the Prisma config are TypeScript that Bun runs like any
+  // other, so they are typechecked like any other. Leaving them out meant a
+  // broken seed script was only discoverable by running it.
+  "include": ["src/**/*.ts", "prisma/**/*.ts", "prisma.config.ts"]
 }

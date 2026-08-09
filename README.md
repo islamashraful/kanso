@@ -25,9 +25,16 @@ docker compose up -d             # Postgres, and kanso_test alongside it
 bun install
 bun run db:migrate               # development database
 bun run db:migrate:test          # test database
+bun run db:seed                  # demo organizations, users and tasks
 
 bun run dev                      # http://localhost:3000
 ```
+
+The seed prints four sign-in addresses, their roles and the organization ids
+they belong to. Every request needs both a bearer token and an `x-org-id`
+header, so those ids are what makes the API explorable without registering an
+account first. Re-running the seed replaces its own data rather than
+duplicating it, and it refuses to run when `NODE_ENV` is `production`.
 
 Both `.env` files are needed. Without `.env.test`, the test suite falls back to
 `.env` and wipes the development database, because every test case clears the
