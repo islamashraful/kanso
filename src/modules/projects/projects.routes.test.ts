@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'bun:test';
 import request from 'supertest';
 
-import { app, asUser, db, json, resetDatabase, seed } from '@/test/support';
+import { addMember, app, asUser, db, json, resetDatabase, seed } from '@/test/support';
 import type { ErrorResponse } from '@/test/support';
 
 interface ProjectResponse {
@@ -91,6 +91,85 @@ describe('GET /api/v1/projects/:id', () => {
 
     expect(res.status).toBe(404);
     expect(json<ErrorResponse>(res).error.code).toBe('NOT_FOUND');
+  });
+});
+
+describe('DELETE /api/v1/projects/:id', () => {
+  it('lets an owner delete a project, and takes its tasks with it', async () => {
+    const project = await db.project.create({
+      data: { organizationId: fixtures.acme.id, name: 'Doomed' },
+    });
+    await db.task.create({
+      data: { organizationId: fixtures.acme.id, projectId: project.id, title: 'Goes too' },
+    });
+
+    const res = await request(app)
+      .delete(`/api/v1/projects/${project.id}`)
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+
+    expect(res.status).toBe(204);
+    expect(await db.project.findUnique({ where: { id: project.id } })).toBeNull();
+    expect(await db.task.count({ where: { projectId: project.id } })).toBe(0);
+  });
+
+  it('lets an admin delete a project', async () => {
+    const admin = await addMember(fixtures.acme.id, 'ADMIN');
+    const project = await db.project.create({
+      data: { organizationId: fixtures.acme.id, name: 'Doomed' },
+    });
+
+    const res = await request(app)
+      .delete(`/api/v1/projects/${project.id}`)
+      .set(asUser(admin, fixtures.acme.id));
+
+    expect(res.status).toBe(204);
+  });
+
+  it('refuses a member with 403, and does not delete anything', async () => {
+    const member = await addMember(fixtures.acme.id, 'MEMBER');
+
+    const res = await request(app)
+      .delete(`/api/v1/projects/${fixtures.acmeProject.id}`)
+      .set(asUser(member, fixtures.acme.id));
+
+    expect(res.status).toBe(403);
+    expect(json<ErrorResponse>(res).error.code).toBe('FORBIDDEN');
+
+    // The middleware has to run before the handler, not alongside it.
+    expect(await db.project.findUnique({ where: { id: fixtures.acmeProject.id } })).not.toBeNull();
+  });
+
+  it('reads the role from the organization named in the request, not the user', async () => {
+    // Ada owns Acme. That must buy her nothing in Globex, where she is only a
+    // member: the role is per organization, not per user.
+    await db.membership.create({
+      data: { userId: fixtures.ada.id, organizationId: fixtures.globex.id, role: 'MEMBER' },
+    });
+
+    const res = await request(app)
+      .delete(`/api/v1/projects/${fixtures.globexProject.id}`)
+      .set(asUser(fixtures.ada, fixtures.globex.id));
+
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 404 for a project in another organization, even to an owner', async () => {
+    // 403 above is about role; this is about tenancy. An owner of Acme is
+    // authorized, and still must not learn whether Globex's project exists.
+    const res = await request(app)
+      .delete(`/api/v1/projects/${fixtures.globexProject.id}`)
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+
+    expect(res.status).toBe(404);
+    expect(
+      await db.project.findUnique({ where: { id: fixtures.globexProject.id } }),
+    ).not.toBeNull();
+  });
+
+  it('requires authentication', async () => {
+    const res = await request(app).delete(`/api/v1/projects/${fixtures.acmeProject.id}`);
+
+    expect(res.status).toBe(401);
   });
 });
 

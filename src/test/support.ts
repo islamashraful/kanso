@@ -1,3 +1,5 @@
+import type { Role } from '@/generated/prisma/enums';
+
 import { createApp } from '@/app';
 import { config } from '@/config';
 import { createDb } from '@/lib/db';
@@ -55,6 +57,24 @@ export const seed = async () => {
   const [ada, bob] = await Promise.all([withToken(adaRow), withToken(bobRow)]);
 
   return { acme, globex, ada, bob, acmeProject, globexProject };
+};
+
+/**
+ * An extra member of an existing organization, for the role cases. Kept out of
+ * `seed` so the fixture counts the other suites assert on stay put.
+ */
+export const addMember = async (
+  organizationId: string,
+  role: Role,
+  email = `member-${role.toLowerCase()}@test.local`,
+): Promise<SeededUser> => {
+  const user = await db.user.create({
+    data: { email, name: `A ${role.toLowerCase()}`, passwordHash: 'x' },
+  });
+
+  await db.membership.create({ data: { userId: user.id, organizationId, role } });
+
+  return withToken(user);
 };
 
 const withToken = async (user: {

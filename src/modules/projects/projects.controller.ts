@@ -32,5 +32,11 @@ export const createProjectsController = (projects: ProjectsService) => {
     res.status(201).json(await projects.create(auth(req).organizationId, input));
   };
 
-  return { list, getById, create };
+  const remove: RequestHandler = async (req, res) => {
+    const { id } = req.validated?.params as { id: string };
+    await projects.remove(auth(req).organizationId, id);
+    res.status(204).end();
+  };
+
+  return { list, getById, create, remove };
 };

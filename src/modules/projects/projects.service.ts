@@ -35,6 +35,15 @@ export const createProjectsService = (db: Db) => ({
       data: { organizationId, name: input.name },
     });
   },
+
+  async remove(organizationId: string, id: string): Promise<void> {
+    // deleteMany scoped to both, rather than delete on the id: a delete would
+    // remove another organization's project if the id were guessed, and the
+    // count is what tells a miss from a success without a prior read.
+    const { count } = await db.project.deleteMany({ where: { id, organizationId } });
+
+    if (count === 0) throw new NotFoundError('Project not found');
+  },
 });
 
 export type ProjectsService = ReturnType<typeof createProjectsService>;
