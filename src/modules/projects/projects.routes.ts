@@ -4,7 +4,7 @@ import { requireOrgRole } from '@/middleware/require-org-role';
 import { validate } from '@/middleware/validate';
 
 import { createProjectsController } from './projects.controller';
-import { createProjectSchema, projectParamsSchema } from './projects.schema';
+import { createProjectSchema, listProjectsSchema, projectParamsSchema } from './projects.schema';
 import type { ProjectsService } from './projects.service';
 
 /**
@@ -17,7 +17,7 @@ export const createProjectsRouter = (projects: ProjectsService): Router => {
   const controller = createProjectsController(projects);
   const router = Router();
 
-  router.get('/', controller.list);
+  router.get('/', validate({ query: listProjectsSchema }), controller.list);
   router.get('/:id', validate({ params: projectParamsSchema }), controller.getById);
   router.post('/', validate({ body: createProjectSchema }), controller.create);
 

@@ -24,3 +24,4 @@ for the shape and [`../writing.md`](../writing.md) for the conventions.
 | [11](0011-authenticate-with-jwt-authorize-from-the-database.md) | Authenticate with JWT, authorize from the database | Accepted |
 | [12](0012-create-an-organization-in-one-transaction.md) | Create an organization in one transaction | Accepted |
 | [13](0013-ordered-roles-rather-than-a-permission-matrix.md) | Ordered roles rather than a permission matrix | Accepted |
+| [14](0014-offset-pagination-behind-a-response-envelope.md) | Offset pagination, behind a response envelope | Accepted |

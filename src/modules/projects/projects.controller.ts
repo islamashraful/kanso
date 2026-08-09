@@ -2,7 +2,7 @@ import type { RequestHandler } from 'express';
 
 import { UnauthorizedError } from '@/lib/errors';
 
-import type { CreateProjectInput } from './projects.schema';
+import type { CreateProjectInput, ListProjectsQuery } from './projects.schema';
 import type { ProjectsService } from './projects.service';
 
 /**
@@ -19,7 +19,8 @@ export const createProjectsController = (projects: ProjectsService) => {
   };
 
   const list: RequestHandler = async (req, res) => {
-    res.json(await projects.list(auth(req).organizationId));
+    const query = req.validated?.query as ListProjectsQuery;
+    res.json(await projects.list(auth(req).organizationId, query));
   };
 
   const getById: RequestHandler = async (req, res) => {

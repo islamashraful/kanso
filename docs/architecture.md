@@ -30,7 +30,7 @@ src/
   app.ts                  composition root: builds the app, never listens
   server.ts               owns the process: listen, SIGTERM, graceful shutdown
   config/                 the only place that reads process.env
-  lib/                    db client, error classes, token signing
+  lib/                    db client, error classes, token signing, pagination
   middleware/             validate, requireUser, requireAuth, requireOrgRole,
                           notFound, errorHandler
   modules/
@@ -147,6 +147,17 @@ which is a getter in Express 5.
 No schema accepts `organizationId`. It is never taken from the client; it
 comes from `req.auth` after membership has been verified.
 
+The organization-scoped collections — tasks and projects — are paginated by
+offset and return `{ data, meta }` rather than a bare array, so a total has
+somewhere to live and the shape survives a later move to cursors
+([ADR-14](adr/0014-offset-pagination-behind-a-response-envelope.md)). `page`
+and `limit` come from one shared schema with `limit` capped at 100, and `sort`
+is a closed enum per module rather than a column name taken from the query
+string. Every ordering ends in `id`, because offset pagination over a
+non-total ordering can return the same row on two pages.
+`GET /organizations` is not paginated: it is bounded by the caller's own
+memberships.
+
 Errors are one hierarchy and one handler
 ([ADR-6](adr/0006-centralized-error-handling.md)). Services throw `AppError`
 subclasses — `NotFoundError`, `UnauthorizedError`, `ForbiddenError`,
@@ -188,7 +199,7 @@ ran after the handler would return the same status over a deleted row.
 
 ## Not here yet
 
-No pagination, caching, background jobs, structured logging, or rate limiting.
+No caching, background jobs, structured logging, or rate limiting.
 No file uploads. Nothing is deployed. There is no concurrency control on
 updates: two clients writing the same task is last-write-wins, and optimistic
 locking is the intended fix. Nothing prevents the last `OWNER` of an

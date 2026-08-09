@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'bun:test';
 import request from 'supertest';
 
 import { addMember, app, asUser, db, json, resetDatabase, seed } from '@/test/support';
-import type { ErrorResponse } from '@/test/support';
+import type { ErrorResponse, PageResponse } from '@/test/support';
 
 interface ProjectResponse {
   id: string;
@@ -65,8 +65,27 @@ describe('GET /api/v1/projects', () => {
       .set(asUser(fixtures.ada, fixtures.acme.id));
 
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(1);
-    expect(json<ProjectResponse[]>(res)[0]?.name).toBe('Acme project');
+    expect(json<PageResponse<ProjectResponse>>(res).data).toHaveLength(1);
+    expect(json<PageResponse<ProjectResponse>>(res).data[0]?.name).toBe('Acme project');
+    expect(json<PageResponse<ProjectResponse>>(res).meta.total).toBe(1);
+  });
+
+  it('pages through projects with the same envelope tasks use', async () => {
+    for (let i = 1; i <= 5; i += 1) {
+      await db.project.create({
+        data: { organizationId: fixtures.acme.id, name: `Project ${String(i)}` },
+      });
+    }
+
+    const res = await request(app)
+      .get('/api/v1/projects?page=2&limit=2')
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+
+    expect(res.status).toBe(200);
+    expect(json<PageResponse<ProjectResponse>>(res).data).toHaveLength(2);
+    // Six, not five: the seed already gave Acme one project.
+    expect(json<PageResponse<ProjectResponse>>(res).meta.total).toBe(6);
+    expect(json<PageResponse<ProjectResponse>>(res).meta.totalPages).toBe(3);
   });
 });
 

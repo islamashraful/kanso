@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { paginationSchema } from '@/lib/pagination';
+
 /**
  * The request contract for tasks. Single source of truth: these schemas drive
  * runtime validation, the TypeScript types below via z.infer, and the OpenAPI
@@ -14,9 +16,17 @@ export const createTaskSchema = z.object({
   status: z.enum(['OPEN', 'IN_PROGRESS', 'DONE']).default('OPEN'),
 });
 
-export const listTasksSchema = z.object({
+/**
+ * Filtering, sorting and paging on one schema. `sort` is a closed enum rather
+ * than a string: a sort key taken from the query string and handed to
+ * `orderBy` unchecked is how a caller reaches a column the API never meant to
+ * order by. See docs/adr/0014.
+ */
+export const listTasksSchema = paginationSchema.extend({
   status: z.enum(['OPEN', 'IN_PROGRESS', 'DONE']).optional(),
   projectId: z.uuid('Not a valid project id').optional(),
+  sort: z.enum(['createdAt', 'updatedAt', 'title', 'status']).default('createdAt'),
+  order: z.enum(['asc', 'desc']).default('desc'),
 });
 
 export const taskParamsSchema = z.object({

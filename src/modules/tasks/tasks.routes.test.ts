@@ -4,7 +4,7 @@ import request from 'supertest';
 
 import { config } from '@/config';
 import { app, asUser, db, json, resetDatabase, seed } from '@/test/support';
-import type { ErrorResponse } from '@/test/support';
+import type { ErrorResponse, PageResponse } from '@/test/support';
 
 interface TaskResponse {
   id: string;
@@ -105,8 +105,12 @@ describe('GET /api/v1/tasks', () => {
     const res = await request(app).get('/api/v1/tasks').set(asUser(fixtures.ada, fixtures.acme.id));
 
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(1);
-    expect(json<TaskResponse[]>(res)[0]?.title).toBe('Acme task');
+    expect(json<PageResponse<TaskResponse>>(res).data).toHaveLength(1);
+    expect(json<PageResponse<TaskResponse>>(res).data[0]?.title).toBe('Acme task');
+
+    // The total counts the caller's organization, not the table. A count that
+    // ignored the tenant filter would leak how much data another org holds.
+    expect(json<PageResponse<TaskResponse>>(res).meta.total).toBe(1);
   });
 
   it('filters by status', async () => {
@@ -127,8 +131,8 @@ describe('GET /api/v1/tasks', () => {
       .set(asUser(fixtures.ada, fixtures.acme.id));
 
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(1);
-    expect(json<TaskResponse[]>(res)[0]?.title).toBe('Done one');
+    expect(json<PageResponse<TaskResponse>>(res).data).toHaveLength(1);
+    expect(json<PageResponse<TaskResponse>>(res).data[0]?.title).toBe('Done one');
   });
 
   it('filters by project', async () => {
@@ -147,8 +151,172 @@ describe('GET /api/v1/tasks', () => {
       .set(asUser(fixtures.ada, fixtures.acme.id));
 
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(1);
-    expect(json<TaskResponse[]>(res)[0]?.title).toBe('Second');
+    expect(json<PageResponse<TaskResponse>>(res).data).toHaveLength(1);
+    expect(json<PageResponse<TaskResponse>>(res).data[0]?.title).toBe('Second');
+
+    // The count is filtered too. Reporting the unfiltered total beside a
+    // filtered page is the classic way a paginator lies about how many pages
+    // there are.
+    expect(json<PageResponse<TaskResponse>>(res).meta.total).toBe(1);
+  });
+});
+
+describe('GET /api/v1/tasks pagination', () => {
+  /** Sequential rather than createMany, so createdAt strictly increases. */
+  const createTasks = async (count: number) => {
+    for (let i = 1; i <= count; i += 1) {
+      await db.task.create({
+        data: {
+          organizationId: fixtures.acme.id,
+          projectId: fixtures.acmeProject.id,
+          title: `Task ${String(i).padStart(2, '0')}`,
+        },
+      });
+    }
+  };
+
+  it('returns the first page and describes the rest', async () => {
+    await createTasks(25);
+
+    const res = await request(app)
+      .get('/api/v1/tasks?limit=10')
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+
+    expect(res.status).toBe(200);
+    expect(json<PageResponse<TaskResponse>>(res).data).toHaveLength(10);
+    expect(json<PageResponse<TaskResponse>>(res).meta).toEqual({
+      page: 1,
+      limit: 10,
+      total: 25,
+      totalPages: 3,
+      hasNext: true,
+      hasPrevious: false,
+    });
+  });
+
+  it('walks to the last page, which is short', async () => {
+    await createTasks(25);
+
+    const res = await request(app)
+      .get('/api/v1/tasks?page=3&limit=10')
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+
+    expect(res.status).toBe(200);
+    expect(json<PageResponse<TaskResponse>>(res).data).toHaveLength(5);
+    expect(json<PageResponse<TaskResponse>>(res).meta.hasNext).toBe(false);
+    expect(json<PageResponse<TaskResponse>>(res).meta.hasPrevious).toBe(true);
+  });
+
+  it('returns an empty page past the end rather than an error', async () => {
+    await createTasks(3);
+
+    const res = await request(app)
+      .get('/api/v1/tasks?page=9')
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+
+    // Asking for a page that does not exist is not a failed request: the
+    // answer to "what is on page 9" is "nothing", and the meta says why.
+    expect(res.status).toBe(200);
+    expect(json<PageResponse<TaskResponse>>(res).data).toEqual([]);
+    expect(json<PageResponse<TaskResponse>>(res).meta.total).toBe(3);
+  });
+
+  it('calls an empty collection one page, not zero', async () => {
+    const res = await request(app).get('/api/v1/tasks').set(asUser(fixtures.ada, fixtures.acme.id));
+
+    expect(json<PageResponse<TaskResponse>>(res).meta.totalPages).toBe(1);
+    expect(json<PageResponse<TaskResponse>>(res).meta.hasNext).toBe(false);
+  });
+
+  it('does not overlap pages when every row ties on the sort key', async () => {
+    // Written with one timestamp on purpose: Prisma maps DateTime to
+    // timestamp(3), so rows created in the same millisecond tie in production
+    // too, and offset pagination over a non-total ordering can put one row on
+    // two pages while dropping another.
+    //
+    // This pins skip/take, not the tiebreaker. Postgres leaves the order of
+    // tied rows unspecified rather than adversarial, and in practice returns
+    // the same one for two identical queries — so removing the `id` tiebreaker
+    // does not fail this test. The tiebreaker is there because the ordering is
+    // not guaranteed, not because this case reproduces it. See docs/adr/0014.
+    const createdAt = new Date('2026-08-09T12:00:00.000Z');
+    await db.task.createMany({
+      data: Array.from({ length: 10 }, (_, i) => ({
+        organizationId: fixtures.acme.id,
+        projectId: fixtures.acmeProject.id,
+        title: `Tied ${String(i)}`,
+        createdAt,
+      })),
+    });
+
+    const credentials = asUser(fixtures.ada, fixtures.acme.id);
+    const first = await request(app).get('/api/v1/tasks?page=1&limit=4').set(credentials);
+    const second = await request(app).get('/api/v1/tasks?page=2&limit=4').set(credentials);
+
+    const ids = [
+      ...json<PageResponse<TaskResponse>>(first).data,
+      ...json<PageResponse<TaskResponse>>(second).data,
+    ].map((task) => task.id);
+
+    expect(new Set(ids).size).toBe(8);
+  });
+
+  it('sorts by a named column in the requested direction', async () => {
+    await createTasks(3);
+
+    const res = await request(app)
+      .get('/api/v1/tasks?sort=title&order=asc')
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+
+    expect(json<PageResponse<TaskResponse>>(res).data.map((task) => task.title)).toEqual([
+      'Task 01',
+      'Task 02',
+      'Task 03',
+    ]);
+  });
+
+  it('refuses a sort key that is not on the list', async () => {
+    // The point of the enum: without it this reaches Prisma's orderBy as an
+    // arbitrary column name from the query string. See docs/adr/0014.
+    const res = await request(app)
+      .get('/api/v1/tasks?sort=organizationId')
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+
+    expect(res.status).toBe(400);
+    expect(json<ErrorResponse>(res).error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('refuses a limit above the cap', async () => {
+    // An uncapped limit is the unbounded response pagination exists to
+    // remove, one query parameter away.
+    const res = await request(app)
+      .get('/api/v1/tasks?limit=5000')
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+
+    expect(res.status).toBe(400);
+    expect(json<ErrorResponse>(res).error.details).toEqual([
+      { path: 'query.limit', message: 'Limit cannot exceed 100' },
+    ]);
+  });
+
+  it('refuses a page below one', async () => {
+    const res = await request(app)
+      .get('/api/v1/tasks?page=0')
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+
+    expect(res.status).toBe(400);
+    expect(json<ErrorResponse>(res).error.details).toEqual([
+      { path: 'query.page', message: 'Page starts at 1' },
+    ]);
+  });
+
+  it('refuses a page that is not a number', async () => {
+    const res = await request(app)
+      .get('/api/v1/tasks?page=two')
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+
+    expect(res.status).toBe(400);
+    expect(json<ErrorResponse>(res).error.code).toBe('VALIDATION_ERROR');
   });
 });
 

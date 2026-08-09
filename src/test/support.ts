@@ -115,6 +115,19 @@ export const resetDatabase = async () => {
   await db.user.deleteMany();
 };
 
+/** The envelope every paginated collection returns. See docs/adr/0014. */
+export interface PageResponse<T> {
+  data: T[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrevious: boolean;
+  };
+}
+
 export interface ErrorResponse {
   error: {
     code: string;

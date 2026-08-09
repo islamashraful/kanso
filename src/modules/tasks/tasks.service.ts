@@ -1,6 +1,8 @@
 import type { TaskModel as Task } from '@/generated/prisma/models';
 import type { Db } from '@/lib/db';
 import { NotFoundError } from '@/lib/errors';
+import type { Page } from '@/lib/pagination';
+import { toOrderBy, toPage, toSkipTake } from '@/lib/pagination';
 
 import type { CreateTaskInput, ListTasksQuery } from './tasks.schema';
 
@@ -17,15 +19,35 @@ import type { CreateTaskInput, ListTasksQuery } from './tasks.schema';
  * review, which is the failure that would leak one tenant's data to another.
  */
 export const createTasksService = (db: Db) => ({
-  async list(organizationId: string, query: ListTasksQuery): Promise<Task[]> {
-    return db.task.findMany({
-      where: {
-        organizationId,
-        ...(query.status ? { status: query.status } : {}),
-        ...(query.projectId ? { projectId: query.projectId } : {}),
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+  async list(organizationId: string, query: ListTasksQuery): Promise<Page<Task>> {
+    const where = {
+      organizationId,
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.projectId ? { projectId: query.projectId } : {}),
+    };
+
+    // One transaction at repeatable read, so the total describes the page it
+    // arrives with. The isolation level is the part that matters: at Postgres's
+    // default, read committed, each statement takes its own snapshot and a
+    // write landing between them yields a count that contradicts the rows.
+    //
+    // Interactive rather than the array form, which accepts `isolationLevel`
+    // and drops it — the transaction opens at read committed regardless. See
+    // docs/adr/0014.
+    const [tasks, total] = await db.$transaction(
+      async (tx) =>
+        Promise.all([
+          tx.task.findMany({
+            where,
+            orderBy: toOrderBy(query.sort, query.order),
+            ...toSkipTake(query),
+          }),
+          tx.task.count({ where }),
+        ]),
+      { isolationLevel: 'RepeatableRead' },
+    );
+
+    return toPage(tasks, total, query);
   },
 
   async getById(organizationId: string, id: string): Promise<Task> {

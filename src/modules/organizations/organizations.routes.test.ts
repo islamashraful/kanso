@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'bun:test';
 import request from 'supertest';
 
 import { app, asIdentity, asUser, db, json, resetDatabase, seed } from '@/test/support';
-import type { ErrorResponse } from '@/test/support';
+import type { ErrorResponse, PageResponse } from '@/test/support';
 
 import { createOrganizationsService } from './organizations.service';
 
@@ -172,14 +172,14 @@ describe('a created organization is immediately usable', () => {
         .send({ name: 'Initech', slug: 'initech' }),
     );
 
-    const projects = json<{ id: string }[]>(
+    const projects = json<PageResponse<{ id: string }>>(
       await request(app).get('/api/v1/projects').set(asUser(fixtures.ada, created.id)),
     );
 
     const res = await request(app)
       .post('/api/v1/tasks')
       .set(asUser(fixtures.ada, created.id))
-      .send({ projectId: projects[0]?.id, title: 'First task' });
+      .send({ projectId: projects.data[0]?.id, title: 'First task' });
 
     // The end the default project exists for: registration through to a first
     // task with no step that requires a project the caller was never given.
