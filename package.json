@@ -34,9 +34,11 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
+    "@scalar/express-api-reference": "^0.10.13",
     "express": "5",
     "jose": "^6.2.8",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "zod-openapi": "^6.0.0"
   },
   "main": "src/server.ts"
 }

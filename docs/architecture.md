@@ -23,7 +23,7 @@ for later ([ADR-1](adr/0001-use-express-5-instead-of-nestjs.md)).
 
 Code is grouped by feature rather than by technical role
 ([ADR-4](adr/0004-feature-based-folder-structure.md)). A module owns its
-routes, controller, service, schema and tests:
+routes, controller, service, schema, OpenAPI paths and tests:
 
 ```
 src/
@@ -33,6 +33,7 @@ src/
   lib/                    db client, error classes, token signing, pagination
   middleware/             validate, requireUser, requireAuth, requireOrgRole,
                           notFound, errorHandler
+  openapi/                shared components, the document, /openapi.json
   modules/
     auth/                 register, login, refresh, logout
     organizations/        create, list
@@ -140,9 +141,21 @@ proved membership, so the resource's existence is not a secret from them.
 Zod schemas are the single source of truth
 ([ADR-5](adr/0005-zod-as-single-source-of-truth.md)). One schema per request
 shape drives runtime validation, the TypeScript types via `z.infer`, and the
-OpenAPI spec. The `validate` middleware parses body, query and params and
+OpenAPI document. The `validate` middleware parses body, query and params and
 stores the result on `req.validated` rather than overwriting `req.query`,
 which is a getter in Express 5.
+
+The API documents itself from those same schemas
+([ADR-15](adr/0015-generate-the-openapi-document-from-zod.md)). Each module
+declares its paths in `<module>.openapi.ts`, `src/openapi/document.ts`
+composes them, and the result is served as `/openapi.json` and rendered by
+Scalar at `/reference` — both outside `/api/v1` and outside authentication,
+since the document describes the shape of the API rather than any tenant's
+data. A parameter the reference describes is one the API enforces, because
+they are the same object. Response schemas are the exception: what leaves a
+service is a Prisma row, not a parsed Zod value, so each response schema is
+pinned to its model by two type-level assignments that fail to compile if the
+two diverge.
 
 No schema accepts `organizationId`. It is never taken from the client; it
 comes from `req.auth` after membership has been verified.

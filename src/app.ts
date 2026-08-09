@@ -15,6 +15,7 @@ import { createProjectsRouter } from '@/modules/projects/projects.routes';
 import { createProjectsService } from '@/modules/projects/projects.service';
 import { createTasksRouter } from '@/modules/tasks/tasks.routes';
 import { createTasksService } from '@/modules/tasks/tasks.service';
+import { createOpenApiRouter } from '@/openapi/openapi.routes';
 
 /**
  * Everything the application needs from the outside world. Dependencies are
@@ -61,6 +62,10 @@ export const createApp = (deps: Deps): Express => {
   v1.use('/tasks', requireAuth, createTasksRouter(tasksService));
 
   app.use('/api/v1', v1);
+
+  // Outside /api/v1 and outside auth: the spec describes the shape of the API,
+  // not any tenant's data. See docs/adr/0015.
+  app.use(createOpenApiRouter());
 
   // Order matters: unmatched paths become a NotFoundError, and the error
   // handler is last so every failure passes through it.
