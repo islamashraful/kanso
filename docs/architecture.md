@@ -28,17 +28,20 @@ routes, controller, service, schema, OpenAPI paths and tests:
 ```
 src/
   app.ts                  composition root: builds the app, never listens
-  server.ts               owns the process: listen, SIGTERM, graceful shutdown
+  server.ts               owns the API process: listen, SIGTERM, graceful shutdown
+  worker.ts               owns the worker process: consumes the notifications queue
   config/                 the only place that reads process.env
-  lib/                    db client, error classes, token signing, pagination
+  lib/                    db client, error classes, token signing, pagination,
+                          Redis connection, email sender
   middleware/             validate, requireUser, requireAuth, requireOrgRole,
                           notFound, errorHandler
   openapi/                shared components, the document, /openapi.json
+  jobs/                   the notifications queue and its worker
   modules/
     auth/                 register, login, refresh, logout
     organizations/        create, list
     projects/             list, read, create, delete
-    tasks/                list, read, create
+    tasks/                list, read, create, assign
   test/support.ts         one app and one database client, shared by the suite
 ```
 
@@ -194,6 +197,32 @@ schema edit that was never migrated fails there rather than diverging quietly.
 `prisma/seed.ts` writes demo data covering all three roles, two organizations
 and every task status, and replaces its own rows rather than duplicating them.
 
+## Background jobs
+
+Assigning a task (`POST /tasks/:id/assign`) enqueues a notification job
+rather than sending an email inline. `src/worker.ts` is a second entry
+point, run separately from the API (`bun run worker`), that consumes the
+queue and shares the database client with the API and nothing else.
+
+`tasks.service.ts` depends on `NotificationsQueue`
+([src/jobs/notifications.job.ts](../src/jobs/notifications.job.ts)), a
+narrow interface rather than a BullMQ `Queue`, so the integration suite can
+substitute a fake that records calls instead of running a worker for every
+assignment test.
+[src/jobs/notifications.worker.test.ts](../src/jobs/notifications.worker.test.ts)
+is the exception, against real Redis: one test enqueues a job directly and
+confirms a real worker processes it; the other sends a real
+`POST /tasks/:id/assign` through a real queue and confirms the same worker
+picks it up — proving the endpoint and the worker actually agree, not just
+that each independently matches the fake. See
+[ADR-16](adr/0016-background-jobs-with-bullmq.md).
+
+The assignee must belong to the task's own organization, enforced the same
+way `Task.projectId` is: a composite foreign key referencing `Membership`'s
+own `(userId, organizationId)` uniqueness, so Postgres — not just the
+service — refuses an assignment to a non-member. See
+[ADR-10](adr/0010-tasks-carry-organization-and-project.md).
+
 ## Testing
 
 Integration tests run against a real PostgreSQL database, not mocks
@@ -212,7 +241,7 @@ ran after the handler would return the same status over a deleted row.
 
 ## Not here yet
 
-No caching, background jobs, structured logging, or rate limiting.
+No caching, structured logging, or rate limiting.
 No file uploads. Nothing is deployed. There is no concurrency control on
 updates: two clients writing the same task is last-write-wins, and optimistic
 locking is the intended fix. Nothing prevents the last `OWNER` of an

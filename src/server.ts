@@ -1,9 +1,12 @@
 import { createApp } from '@/app';
 import { config } from '@/config';
+import { createNotificationsQueue } from '@/jobs/notifications.job';
 import { createDb } from '@/lib/db';
+import { createRedisConnection } from '@/lib/queue';
 
 const db = createDb(config);
-const app = createApp({ config, db });
+const notifications = createNotificationsQueue(createRedisConnection(config));
+const app = createApp({ config, db, notifications });
 
 const server = app.listen(config.PORT, () => {
   console.log(`kanso listening on http://localhost:${config.PORT} (${config.NODE_ENV})`);

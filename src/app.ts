@@ -1,6 +1,7 @@
 import express, { type Express } from 'express';
 
 import type { Config } from '@/config';
+import type { NotificationsQueue } from '@/jobs/notifications.job';
 import type { Db } from '@/lib/db';
 import { createErrorHandler } from '@/middleware/error-handler';
 import { notFound } from '@/middleware/not-found';
@@ -25,6 +26,7 @@ import { createOpenApiRouter } from '@/openapi/openapi.routes';
 export interface Deps {
   config: Config;
   db: Db;
+  notifications: NotificationsQueue;
 }
 
 /**
@@ -49,7 +51,7 @@ export const createApp = (deps: Deps): Express => {
   const authService = createAuthService(deps.db, tokens, deps.config);
   const organizationsService = createOrganizationsService(deps.db);
   const projectsService = createProjectsService(deps.db);
-  const tasksService = createTasksService(deps.db);
+  const tasksService = createTasksService(deps.db, deps.notifications);
 
   const v1 = express.Router();
   // Mounted without requireAuth: these endpoints issue the credentials the

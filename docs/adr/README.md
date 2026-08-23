@@ -26,3 +26,4 @@ for the shape and [`../writing.md`](../writing.md) for the conventions.
 | [13](0013-ordered-roles-rather-than-a-permission-matrix.md) | Ordered roles rather than a permission matrix | Accepted |
 | [14](0014-offset-pagination-behind-a-response-envelope.md) | Offset pagination, behind a response envelope | Accepted |
 | [15](0015-generate-the-openapi-document-from-zod.md) | Generate the OpenAPI document from Zod, rendered by Scalar | Accepted |
+| [16](0016-background-jobs-with-bullmq.md) | Background jobs with BullMQ, queue as a fakeable dependency | Accepted |

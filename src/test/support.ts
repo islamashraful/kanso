@@ -1,4 +1,5 @@
 import type { Role } from '@/generated/prisma/enums';
+import type { TaskAssignedJobData } from '@/jobs/notifications.job';
 
 import { createApp } from '@/app';
 import { config } from '@/config';
@@ -13,7 +14,23 @@ import { createTokens } from '@/lib/tokens';
  * it. See docs/adr/0009.
  */
 export const db = createDb(config);
-export const app = createApp({ config, db });
+
+/**
+ * A fake in place of the real BullMQ-backed queue, so the suite never
+ * touches Redis for ordinary assignment tests. This is the one dependency
+ * deliberately faked rather than run for real — see docs/adr/0016 for why,
+ * and `src/jobs/notifications.worker.test.ts` for the real-Redis proof that
+ * the wiring itself works.
+ */
+export const notifications = {
+  calls: [] as TaskAssignedJobData[],
+  enqueueTaskAssigned(data: TaskAssignedJobData) {
+    notifications.calls.push(data);
+    return Promise.resolve();
+  },
+};
+
+export const app = createApp({ config, db, notifications });
 
 const tokens = createTokens(config);
 
@@ -113,6 +130,7 @@ export const asIdentity = (user: SeededUser) => ({
 export const resetDatabase = async () => {
   await db.organization.deleteMany();
   await db.user.deleteMany();
+  notifications.calls = [];
 };
 
 /** The envelope every paginated collection returns. See docs/adr/0014. */

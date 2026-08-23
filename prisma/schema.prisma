@@ -96,11 +96,22 @@ model Task {
   projectId      String
   title          String
   status         TaskStatus @default(OPEN)
+  assigneeId     String?
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   project      Project      @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  // Same composite-FK trick as `project` above: referencing Membership's own
+  // (userId, organizationId) unique makes "the assignee is a member of this
+  // task's organization" a database guarantee, not just an application
+  // check. See docs/adr/0010 and docs/adr/0016.
+  //
+  // Restrict, not SetNull: organizationId is required on this side of the
+  // composite key, so SetNull would try to null it out too and fail. There
+  // is no membership-removal endpoint yet to make this reachable; when one
+  // exists it must clear assigneeId itself before removing a membership.
+  assignee     Membership?  @relation(fields: [assigneeId, organizationId], references: [userId, organizationId], onDelete: Restrict)
 
   @@index([organizationId])
   @@index([projectId, organizationId])
@@ -124,8 +135,9 @@ model Membership {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedTasks Task[]
 
   @@unique([userId, organizationId])
   @@index([organizationId])

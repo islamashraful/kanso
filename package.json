@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "bun --watch src/server.ts",
     "start": "bun src/server.ts",
+    "worker": "bun --watch src/worker.ts",
+    "worker:start": "bun src/worker.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -35,7 +37,9 @@
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "@scalar/express-api-reference": "^0.10.13",
+    "bullmq": "^6.2.0",
     "express": "5",
+    "ioredis": "^6.0.0",
     "jose": "^6.2.8",
     "zod": "^4.4.3",
     "zod-openapi": "^6.0.0"

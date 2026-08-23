@@ -2,7 +2,7 @@ import type { RequestHandler } from 'express';
 
 import { UnauthorizedError } from '@/lib/errors';
 
-import type { CreateTaskInput, ListTasksQuery } from './tasks.schema';
+import type { AssignTaskInput, CreateTaskInput, ListTasksQuery } from './tasks.schema';
 import type { TasksService } from './tasks.service';
 
 /**
@@ -33,5 +33,11 @@ export const createTasksController = (tasks: TasksService) => {
     res.status(201).json(await tasks.create(auth(req).organizationId, input));
   };
 
-  return { list, getById, create };
+  const assign: RequestHandler = async (req, res) => {
+    const { id } = req.validated?.params as { id: string };
+    const { assigneeId } = req.validated?.body as AssignTaskInput;
+    res.json(await tasks.assign(auth(req).organizationId, id, assigneeId));
+  };
+
+  return { list, getById, create, assign };
 };

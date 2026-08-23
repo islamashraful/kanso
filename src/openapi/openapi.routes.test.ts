@@ -103,6 +103,7 @@ describe('GET /openapi.json', () => {
       'POST /api/v1/organizations',
       'POST /api/v1/projects',
       'POST /api/v1/tasks',
+      'POST /api/v1/tasks/{id}/assign',
     ]);
   });
 
@@ -153,6 +154,7 @@ describe('GET /openapi.json', () => {
       'GET /api/v1/tasks/{id}',
       'POST /api/v1/projects',
       'POST /api/v1/tasks',
+      'POST /api/v1/tasks/{id}/assign',
     ]);
   });
 

@@ -9,6 +9,7 @@ import {
 } from '@/openapi/components';
 
 import {
+  assignTaskSchema,
   createTaskSchema,
   listTasksSchema,
   taskParamsSchema,
@@ -60,6 +61,24 @@ export const taskPaths: ZodOpenApiPathsObject = {
         ...scopedFailures,
         404: errorResponse(
           'No such task, or it belongs to another organization. The two are deliberately indistinguishable, so ids cannot be probed for what exists. See docs/adr/0007.',
+        ),
+      },
+    },
+  },
+
+  '/api/v1/tasks/{id}/assign': {
+    post: {
+      tags: ['Tasks'],
+      summary: 'Assign a task to an organization member',
+      description:
+        'Enqueues a notification job on success. `assigneeId` must be a member of the same organization as the task — enforced by a composite foreign key, not just this check. See docs/adr/0016.',
+      requestParams: { path: taskParamsSchema, header: orgHeaderSchema },
+      requestBody: { content: { 'application/json': { schema: assignTaskSchema } } },
+      responses: {
+        200: jsonResponse('The task, now assigned.', taskResponseSchema),
+        ...scopedFailures,
+        404: errorResponse(
+          'No such task in this organization, or `assigneeId` is not a member of it.',
         ),
       },
     },

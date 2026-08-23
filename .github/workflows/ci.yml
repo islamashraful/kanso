@@ -32,12 +32,25 @@ jobs:
           --health-timeout 5s
           --health-retries 10
 
+      # The one real-Redis test (src/jobs/notifications.worker.test.ts) needs
+      # this.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     # The runner has no .env.test, so anything src/config requires has to be set
     # here. The signing key is a literal rather than a repository secret: it
     # signs tokens that exist for the length of one job, and a secret would hide
     # from a contributor which values a run actually needs.
     env:
       DATABASE_URL: postgresql://kanso:kanso@localhost:5432/kanso_test
+      REDIS_URL: redis://localhost:6379
       JWT_SECRET: any-32-character-string-works-for-tests-here
 
     steps:

@@ -35,6 +35,10 @@ export const taskParamsSchema = z.object({
   id: z.uuid('Not a valid task id'),
 });
 
+export const assignTaskSchema = z.object({
+  assigneeId: z.uuid('Not a valid member id'),
+});
+
 /**
  * What a task looks like on the wire. Dates are strings here, not `Date`:
  * this describes the response after `res.json()`, not the row Prisma returns.
@@ -46,6 +50,7 @@ export const taskResponseSchema = z
     projectId: z.uuid(),
     title: z.string(),
     status: z.enum(['OPEN', 'IN_PROGRESS', 'DONE']),
+    assigneeId: z.uuid().nullable(),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
   })
@@ -53,6 +58,7 @@ export const taskResponseSchema = z
 
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 export type ListTasksQuery = z.infer<typeof listTasksSchema>;
+export type AssignTaskInput = z.infer<typeof assignTaskSchema>;
 export type TaskResponse = z.infer<typeof taskResponseSchema>;
 
 /*

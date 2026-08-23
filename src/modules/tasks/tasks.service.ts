@@ -1,4 +1,5 @@
 import type { TaskModel as Task } from '@/generated/prisma/models';
+import type { NotificationsQueue } from '@/jobs/notifications.job';
 import type { Db } from '@/lib/db';
 import { NotFoundError } from '@/lib/errors';
 import type { Page } from '@/lib/pagination';
@@ -18,7 +19,7 @@ import type { CreateTaskInput, ListTasksQuery } from './tasks.schema';
  * repetition is deliberate: it makes an unscoped query visually obvious in
  * review, which is the failure that would leak one tenant's data to another.
  */
-export const createTasksService = (db: Db) => ({
+export const createTasksService = (db: Db, notifications: NotificationsQueue) => ({
   async list(organizationId: string, query: ListTasksQuery): Promise<Page<Task>> {
     const where = {
       organizationId,
@@ -82,6 +83,29 @@ export const createTasksService = (db: Db) => ({
         status: input.status,
       },
     });
+  },
+
+  /**
+   * Assign a task to a member of the same organization, and enqueue the
+   * notification job. Both lookups are proactive — the same style as
+   * `create`'s project check — rather than catching the constraint the
+   * composite `assignee` FK on `Task` enforces underneath this. See
+   * docs/adr/0016.
+   */
+  async assign(organizationId: string, id: string, assigneeId: string): Promise<Task> {
+    const task = await db.task.findFirst({ where: { id, organizationId }, select: { id: true } });
+    if (!task) throw new NotFoundError('Task not found');
+
+    const membership = await db.membership.findUnique({
+      where: { userId_organizationId: { userId: assigneeId, organizationId } },
+      select: { userId: true },
+    });
+    if (!membership) throw new NotFoundError('Member not found in this organization');
+
+    const updated = await db.task.update({ where: { id }, data: { assigneeId } });
+    await notifications.enqueueTaskAssigned({ taskId: updated.id, assigneeId });
+
+    return updated;
   },
 });
 

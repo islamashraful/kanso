@@ -3,7 +3,16 @@ import { SignJWT } from 'jose';
 import request from 'supertest';
 
 import { config } from '@/config';
-import { app, asUser, db, json, resetDatabase, seed } from '@/test/support';
+import {
+  addMember,
+  app,
+  asUser,
+  db,
+  json,
+  notifications,
+  resetDatabase,
+  seed,
+} from '@/test/support';
 import type { ErrorResponse, PageResponse } from '@/test/support';
 
 interface TaskResponse {
@@ -12,6 +21,7 @@ interface TaskResponse {
   status: string;
   organizationId: string;
   projectId: string;
+  assigneeId: string | null;
 }
 
 let fixtures: Awaited<ReturnType<typeof seed>>;
@@ -355,6 +365,89 @@ describe('GET /api/v1/tasks/:id', () => {
     // task exists, leaking one tenant's data to another.
     expect(res.status).toBe(404);
     expect(json<ErrorResponse>(res).error.code).toBe('NOT_FOUND');
+  });
+});
+
+describe('POST /api/v1/tasks/:id/assign', () => {
+  it('assigns a task to a member and enqueues a notification', async () => {
+    const task = await db.task.create({
+      data: {
+        organizationId: fixtures.acme.id,
+        projectId: fixtures.acmeProject.id,
+        title: 'Needs an owner',
+      },
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/tasks/${task.id}/assign`)
+      .set(asUser(fixtures.ada, fixtures.acme.id))
+      .send({ assigneeId: fixtures.ada.id });
+
+    expect(res.status).toBe(200);
+    expect(json<TaskResponse>(res).assigneeId).toBe(fixtures.ada.id);
+    expect(notifications.calls).toEqual([{ taskId: task.id, assigneeId: fixtures.ada.id }]);
+  });
+
+  it('returns 404 for a task in another organization', async () => {
+    const globexTask = await db.task.create({
+      data: {
+        organizationId: fixtures.globex.id,
+        projectId: fixtures.globexProject.id,
+        title: 'Not yours',
+      },
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/tasks/${globexTask.id}/assign`)
+      .set(asUser(fixtures.ada, fixtures.acme.id))
+      .send({ assigneeId: fixtures.ada.id });
+
+    expect(res.status).toBe(404);
+    expect(json<ErrorResponse>(res).error.code).toBe('NOT_FOUND');
+    expect(notifications.calls).toEqual([]);
+  });
+
+  it('refuses an assignee who is not a member of the organization', async () => {
+    const task = await db.task.create({
+      data: {
+        organizationId: fixtures.acme.id,
+        projectId: fixtures.acmeProject.id,
+        title: 'Needs an owner',
+      },
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/tasks/${task.id}/assign`)
+      .set(asUser(fixtures.ada, fixtures.acme.id))
+      // Bob is a member of Globex, not Acme.
+      .send({ assigneeId: fixtures.bob.id });
+
+    expect(res.status).toBe(404);
+    expect(json<ErrorResponse>(res).error.code).toBe('NOT_FOUND');
+    expect(await db.task.findUniqueOrThrow({ where: { id: task.id } })).toMatchObject({
+      assigneeId: null,
+    });
+    expect(notifications.calls).toEqual([]);
+  });
+
+  it('reassigns to a different member of the same organization', async () => {
+    const other = await addMember(fixtures.acme.id, 'MEMBER');
+    const task = await db.task.create({
+      data: {
+        organizationId: fixtures.acme.id,
+        projectId: fixtures.acmeProject.id,
+        title: 'Needs an owner',
+        assigneeId: fixtures.ada.id,
+      },
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/tasks/${task.id}/assign`)
+      .set(asUser(fixtures.ada, fixtures.acme.id))
+      .send({ assigneeId: other.id });
+
+    expect(res.status).toBe(200);
+    expect(json<TaskResponse>(res).assigneeId).toBe(other.id);
   });
 });
 

@@ -3,7 +3,12 @@ import { Router } from 'express';
 import { validate } from '@/middleware/validate';
 
 import { createTasksController } from './tasks.controller';
-import { createTaskSchema, listTasksSchema, taskParamsSchema } from './tasks.schema';
+import {
+  assignTaskSchema,
+  createTaskSchema,
+  listTasksSchema,
+  taskParamsSchema,
+} from './tasks.schema';
 import type { TasksService } from './tasks.service';
 
 /**
@@ -19,6 +24,11 @@ export const createTasksRouter = (tasks: TasksService): Router => {
   router.get('/', validate({ query: listTasksSchema }), controller.list);
   router.get('/:id', validate({ params: taskParamsSchema }), controller.getById);
   router.post('/', validate({ body: createTaskSchema }), controller.create);
+  router.post(
+    '/:id/assign',
+    validate({ params: taskParamsSchema, body: assignTaskSchema }),
+    controller.assign,
+  );
 
   return router;
 };
