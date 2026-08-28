@@ -236,11 +236,16 @@ an `ioredis` client directly, so the integration suite can substitute an
 in-memory fake.
 
 The TTL on each cached entry is a backstop, not the freshness mechanism.
-`create` and `PATCH /tasks/:id/status` — the only two writes that change a
-task's status distribution — each delete the cached entry for their
-organization the moment they commit, so a cache hit is either fresh or
-absent, never stale. See
-[ADR-17](adr/0017-cache-task-stats-with-explicit-invalidation.md).
+Three writes invalidate it: `create` and `PATCH /tasks/:id/status` change a
+task's status distribution directly; deleting a project
+(`DELETE /projects/:id`) changes it indirectly, by cascading to every task
+in it. All three delete the cached entry for their organization the moment
+they commit, so a cache hit is either fresh or absent, never stale. What
+the TTL still guards against is a write from outside this codebase
+entirely — a script, another service, a migration — which no set of
+`cache.del` call sites can ever see. See
+[ADR-17](adr/0017-cache-task-stats-with-explicit-invalidation.md), including
+its "Known gap" section for the reasoning behind that boundary.
 
 ## Health checks
 

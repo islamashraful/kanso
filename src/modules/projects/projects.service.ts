@@ -1,8 +1,10 @@
 import type { ProjectModel as Project } from '@/generated/prisma/models';
+import type { Cache } from '@/lib/cache';
 import type { Db } from '@/lib/db';
 import { NotFoundError } from '@/lib/errors';
 import type { Page } from '@/lib/pagination';
 import { toOrderBy, toPage, toSkipTake } from '@/lib/pagination';
+import { statsCacheKey } from '@/modules/tasks/tasks.service';
 
 import type { CreateProjectInput, ListProjectsQuery } from './projects.schema';
 
@@ -13,7 +15,7 @@ import type { CreateProjectInput, ListProjectsQuery } from './projects.schema';
  * `organizationId` first and every query filters on it, so an unscoped query is
  * visually obvious in review. See docs/adr/0001 and docs/adr/0003.
  */
-export const createProjectsService = (db: Db) => ({
+export const createProjectsService = (db: Db, cache: Cache) => ({
   async list(organizationId: string, query: ListProjectsQuery): Promise<Page<Project>> {
     const where = { organizationId };
 
@@ -61,6 +63,11 @@ export const createProjectsService = (db: Db) => ({
     const { count } = await db.project.deleteMany({ where: { id, organizationId } });
 
     if (count === 0) throw new NotFoundError('Project not found');
+
+    // A project's tasks cascade-delete with it, which changes the org's task
+    // stats. See docs/adr/0017's "Known gap" section for why this was
+    // missing and got fixed rather than left to the TTL.
+    await cache.del(statsCacheKey(organizationId));
   },
 });
 

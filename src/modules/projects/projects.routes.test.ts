@@ -131,6 +131,34 @@ describe('DELETE /api/v1/projects/:id', () => {
     expect(await db.task.count({ where: { projectId: project.id } })).toBe(0);
   });
 
+  /**
+   * Deleting a project cascades to its tasks, which changes the organization's
+   * task stats — a gap this endpoint used to miss. See docs/adr/0017's "Known
+   * gap" section.
+   */
+  it('invalidates the organization task-stats cache', async () => {
+    const project = await db.project.create({
+      data: { organizationId: fixtures.acme.id, name: 'Doomed' },
+    });
+    await db.task.create({
+      data: { organizationId: fixtures.acme.id, projectId: project.id, title: 'Goes too' },
+    });
+
+    const before = await request(app)
+      .get('/api/v1/tasks/stats')
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+    expect(json<{ total: number }>(before).total).toBe(1);
+
+    await request(app)
+      .delete(`/api/v1/projects/${project.id}`)
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+
+    const after = await request(app)
+      .get('/api/v1/tasks/stats')
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+    expect(json<{ total: number }>(after).total).toBe(0);
+  });
+
   it('lets an admin delete a project', async () => {
     const admin = await addMember(fixtures.acme.id, 'ADMIN');
     const project = await db.project.create({

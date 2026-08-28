@@ -17,8 +17,12 @@ import type {
  * One key per organization: stats are computed across all of an org's tasks,
  * not per project, so that's the only thing the key needs to name. See
  * docs/adr/0017.
+ *
+ * Exported, not private to this module: deleting a project cascades to its
+ * tasks and changes what this key describes, so `projects.service.ts` needs
+ * the same key to invalidate it. See docs/adr/0017's "Known gap" section.
  */
-const statsCacheKey = (organizationId: string) => `stats:tasks:${organizationId}`;
+export const statsCacheKey = (organizationId: string) => `stats:tasks:${organizationId}`;
 
 /**
  * A backstop against a missed invalidation, not the freshness mechanism —

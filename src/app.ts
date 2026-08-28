@@ -60,7 +60,7 @@ export const createApp = (deps: Deps): Express => {
 
   const authService = createAuthService(deps.db, tokens, deps.config);
   const organizationsService = createOrganizationsService(deps.db);
-  const projectsService = createProjectsService(deps.db);
+  const projectsService = createProjectsService(deps.db, deps.cache);
   const tasksService = createTasksService(deps.db, deps.notifications, deps.cache);
 
   const v1 = express.Router();
