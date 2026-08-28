@@ -451,6 +451,202 @@ describe('POST /api/v1/tasks/:id/assign', () => {
   });
 });
 
+describe('PATCH /api/v1/tasks/:id/status', () => {
+  it('changes the status', async () => {
+    const task = await db.task.create({
+      data: {
+        organizationId: fixtures.acme.id,
+        projectId: fixtures.acmeProject.id,
+        title: 'In progress',
+      },
+    });
+
+    const res = await request(app)
+      .patch(`/api/v1/tasks/${task.id}/status`)
+      .set(asUser(fixtures.ada, fixtures.acme.id))
+      .send({ status: 'DONE' });
+
+    expect(res.status).toBe(200);
+    expect(json<TaskResponse>(res).status).toBe('DONE');
+  });
+
+  it('returns 404 for a task in another organization', async () => {
+    const globexTask = await db.task.create({
+      data: {
+        organizationId: fixtures.globex.id,
+        projectId: fixtures.globexProject.id,
+        title: 'Not yours',
+      },
+    });
+
+    const res = await request(app)
+      .patch(`/api/v1/tasks/${globexTask.id}/status`)
+      .set(asUser(fixtures.ada, fixtures.acme.id))
+      .send({ status: 'DONE' });
+
+    expect(res.status).toBe(404);
+    expect(json<ErrorResponse>(res).error.code).toBe('NOT_FOUND');
+  });
+
+  it('rejects a status outside the enum', async () => {
+    const task = await db.task.create({
+      data: {
+        organizationId: fixtures.acme.id,
+        projectId: fixtures.acmeProject.id,
+        title: 'Needs a real status',
+      },
+    });
+
+    const res = await request(app)
+      .patch(`/api/v1/tasks/${task.id}/status`)
+      .set(asUser(fixtures.ada, fixtures.acme.id))
+      .send({ status: 'CANCELLED' });
+
+    expect(res.status).toBe(400);
+    expect(json<ErrorResponse>(res).error.code).toBe('VALIDATION_ERROR');
+  });
+});
+
+interface TaskStatsResponse {
+  total: number;
+  byStatus: { OPEN: number; IN_PROGRESS: number; DONE: number };
+  completionRate: number;
+}
+
+describe('GET /api/v1/tasks/stats', () => {
+  it('counts tasks by status and computes the completion rate', async () => {
+    await db.task.createMany({
+      data: [
+        { organizationId: fixtures.acme.id, projectId: fixtures.acmeProject.id, title: 'a' },
+        { organizationId: fixtures.acme.id, projectId: fixtures.acmeProject.id, title: 'b' },
+        {
+          organizationId: fixtures.acme.id,
+          projectId: fixtures.acmeProject.id,
+          title: 'c',
+          status: 'DONE',
+        },
+        {
+          organizationId: fixtures.globex.id,
+          projectId: fixtures.globexProject.id,
+          title: 'not acme',
+          status: 'DONE',
+        },
+      ],
+    });
+
+    const res = await request(app)
+      .get('/api/v1/tasks/stats')
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+
+    expect(res.status).toBe(200);
+    expect(json<TaskStatsResponse>(res)).toEqual({
+      total: 3,
+      byStatus: { OPEN: 2, IN_PROGRESS: 0, DONE: 1 },
+      completionRate: 33,
+    });
+  });
+
+  it('reports zero rather than dividing by zero when the organization has no tasks', async () => {
+    const res = await request(app)
+      .get('/api/v1/tasks/stats')
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+
+    expect(res.status).toBe(200);
+    expect(json<TaskStatsResponse>(res)).toEqual({
+      total: 0,
+      byStatus: { OPEN: 0, IN_PROGRESS: 0, DONE: 0 },
+      completionRate: 0,
+    });
+  });
+
+  /**
+   * Proves the cache is actually read, not merely written: a write that
+   * bypasses `tasks.service.ts` (a direct Prisma call, standing in for
+   * "some other process changed the data") must not change what this
+   * endpoint reports, because nothing told the cache to forget. If this
+   * assertion failed, `stats()` would be recomputing every time and the
+   * "cached" claim would be untested.
+   */
+  it('serves a cached count that a write outside the service does not affect', async () => {
+    await db.task.create({
+      data: { organizationId: fixtures.acme.id, projectId: fixtures.acmeProject.id, title: 'a' },
+    });
+
+    const first = await request(app)
+      .get('/api/v1/tasks/stats')
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+    expect(json<TaskStatsResponse>(first).total).toBe(1);
+
+    // Bypasses the service and its cache invalidation entirely.
+    await db.task.create({
+      data: { organizationId: fixtures.acme.id, projectId: fixtures.acmeProject.id, title: 'b' },
+    });
+
+    const second = await request(app)
+      .get('/api/v1/tasks/stats')
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+    expect(json<TaskStatsResponse>(second).total).toBe(1);
+  });
+
+  it('invalidates the cache when a task is created through the API', async () => {
+    const before = await request(app)
+      .get('/api/v1/tasks/stats')
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+    expect(json<TaskStatsResponse>(before).total).toBe(0);
+
+    await request(app)
+      .post('/api/v1/tasks')
+      .set(asUser(fixtures.ada, fixtures.acme.id))
+      .send({ title: 'New task', projectId: fixtures.acmeProject.id });
+
+    const after = await request(app)
+      .get('/api/v1/tasks/stats')
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+    expect(json<TaskStatsResponse>(after).total).toBe(1);
+  });
+
+  it('invalidates the cache when a status changes through the API', async () => {
+    const task = await db.task.create({
+      data: { organizationId: fixtures.acme.id, projectId: fixtures.acmeProject.id, title: 'a' },
+    });
+
+    const before = await request(app)
+      .get('/api/v1/tasks/stats')
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+    expect(json<TaskStatsResponse>(before).completionRate).toBe(0);
+
+    await request(app)
+      .patch(`/api/v1/tasks/${task.id}/status`)
+      .set(asUser(fixtures.ada, fixtures.acme.id))
+      .send({ status: 'DONE' });
+
+    const after = await request(app)
+      .get('/api/v1/tasks/stats')
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+    expect(json<TaskStatsResponse>(after).completionRate).toBe(100);
+  });
+
+  it('caches org A and org B separately', async () => {
+    await db.task.create({
+      data: {
+        organizationId: fixtures.acme.id,
+        projectId: fixtures.acmeProject.id,
+        title: 'acme only',
+      },
+    });
+
+    const acmeStats = await request(app)
+      .get('/api/v1/tasks/stats')
+      .set(asUser(fixtures.ada, fixtures.acme.id));
+    const globexStats = await request(app)
+      .get('/api/v1/tasks/stats')
+      .set(asUser(fixtures.bob, fixtures.globex.id));
+
+    expect(json<TaskStatsResponse>(acmeStats).total).toBe(1);
+    expect(json<TaskStatsResponse>(globexStats).total).toBe(0);
+  });
+});
+
 describe('authentication', () => {
   it('rejects a request with no credentials', async () => {
     const res = await request(app).get('/api/v1/tasks');

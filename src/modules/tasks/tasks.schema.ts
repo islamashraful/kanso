@@ -39,6 +39,10 @@ export const assignTaskSchema = z.object({
   assigneeId: z.uuid('Not a valid member id'),
 });
 
+export const updateTaskStatusSchema = z.object({
+  status: z.enum(['OPEN', 'IN_PROGRESS', 'DONE']),
+});
+
 /**
  * What a task looks like on the wire. Dates are strings here, not `Date`:
  * this describes the response after `res.json()`, not the row Prisma returns.
@@ -56,10 +60,32 @@ export const taskResponseSchema = z
   })
   .meta({ id: 'Task' });
 
+/**
+ * Task counts by status for one organization, plus the completion rate they
+ * imply. Cached in Redis behind `stats()` — see docs/adr/0017.
+ */
+export const taskStatsResponseSchema = z
+  .object({
+    total: z.int().meta({ example: 42 }),
+    byStatus: z.object({
+      OPEN: z.int().meta({ example: 20 }),
+      IN_PROGRESS: z.int().meta({ example: 15 }),
+      DONE: z.int().meta({ example: 7 }),
+    }),
+    completionRate: z
+      .int()
+      .min(0)
+      .max(100)
+      .meta({ description: 'DONE as a percentage of total, rounded. 0 when total is 0.' }),
+  })
+  .meta({ id: 'TaskStats' });
+
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 export type ListTasksQuery = z.infer<typeof listTasksSchema>;
 export type AssignTaskInput = z.infer<typeof assignTaskSchema>;
+export type UpdateTaskStatusInput = z.infer<typeof updateTaskStatusSchema>;
 export type TaskResponse = z.infer<typeof taskResponseSchema>;
+export type TaskStatsResponse = z.infer<typeof taskStatsResponseSchema>;
 
 /*
  * Pins the documented response to the Prisma model. Neither line runs: each is

@@ -41,7 +41,30 @@ export const redis = {
   ping: () => Promise.resolve('PONG'),
 };
 
-export const app = createApp({ config, db, notifications, redis });
+/**
+ * A fake in place of the real Redis-backed cache. Real get/set/del semantics
+ * over an in-memory `Map`, not stubbed responses — the tests in
+ * `tasks.routes.test.ts` that assert caching and invalidation actually
+ * behave rely on this holding a value across calls the way Redis would.
+ * `lib/cache.test.ts` is the deliberate real-Redis exception, mirroring
+ * `notifications.worker.test.ts`.
+ */
+export const cache = {
+  store: new Map<string, string>(),
+  get(key: string) {
+    return Promise.resolve(this.store.get(key) ?? null);
+  },
+  set(key: string, value: string) {
+    this.store.set(key, value);
+    return Promise.resolve();
+  },
+  del(key: string) {
+    this.store.delete(key);
+    return Promise.resolve();
+  },
+};
+
+export const app = createApp({ config, db, notifications, redis, cache });
 
 const tokens = createTokens(config);
 
@@ -142,6 +165,7 @@ export const resetDatabase = async () => {
   await db.organization.deleteMany();
   await db.user.deleteMany();
   notifications.calls = [];
+  cache.store.clear();
 };
 
 /** The envelope every paginated collection returns. See docs/adr/0014. */

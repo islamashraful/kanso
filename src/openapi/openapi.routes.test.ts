@@ -95,7 +95,9 @@ describe('GET /openapi.json', () => {
       'GET /api/v1/projects',
       'GET /api/v1/projects/{id}',
       'GET /api/v1/tasks',
+      'GET /api/v1/tasks/stats',
       'GET /api/v1/tasks/{id}',
+      'PATCH /api/v1/tasks/{id}/status',
       'POST /api/v1/auth/login',
       'POST /api/v1/auth/logout',
       'POST /api/v1/auth/refresh',
@@ -151,7 +153,9 @@ describe('GET /openapi.json', () => {
       'GET /api/v1/projects',
       'GET /api/v1/projects/{id}',
       'GET /api/v1/tasks',
+      'GET /api/v1/tasks/stats',
       'GET /api/v1/tasks/{id}',
+      'PATCH /api/v1/tasks/{id}/status',
       'POST /api/v1/projects',
       'POST /api/v1/tasks',
       'POST /api/v1/tasks/{id}/assign',
@@ -186,6 +190,7 @@ describe('GET /openapi.json', () => {
       'ProjectPage',
       'Task',
       'TaskPage',
+      'TaskStats',
       'TokenPair',
     ]);
   });

@@ -4,7 +4,7 @@ import request from 'supertest';
 import { createApp } from '@/app';
 import { config } from '@/config';
 import { createRedisConnection } from '@/lib/queue';
-import { db, notifications } from '@/test/support';
+import { cache, db, notifications } from '@/test/support';
 
 /**
  * This test talks to a real Redis connection, proving `/health/ready`
@@ -15,7 +15,7 @@ import { db, notifications } from '@/test/support';
 describe('GET /health/ready against real Redis', () => {
   it('reports ok', async () => {
     const redis = createRedisConnection(config);
-    const app = createApp({ config, db, notifications, redis });
+    const app = createApp({ config, db, notifications, redis, cache });
 
     try {
       const res = await request(app).get('/health/ready');

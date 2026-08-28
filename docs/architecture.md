@@ -32,7 +32,7 @@ src/
   worker.ts               owns the worker process: consumes the notifications queue
   config/                 the only place that reads process.env
   lib/                    db client, error classes, token signing, pagination,
-                          Redis connection, email sender
+                          Redis connection, Redis-backed cache, email sender
   middleware/             validate, requireUser, requireAuth, requireOrgRole,
                           notFound, errorHandler
   openapi/                shared components, the document, /openapi.json
@@ -41,7 +41,8 @@ src/
     auth/                 register, login, refresh, logout
     organizations/        create, list
     projects/             list, read, create, delete
-    tasks/                list, read, create, assign
+    tasks/                list, read, create, assign, change status, stats
+    health/               liveness and readiness
   test/support.ts         one app and one database client, shared by the suite
 ```
 
@@ -223,6 +224,35 @@ own `(userId, organizationId)` uniqueness, so Postgres — not just the
 service — refuses an assignment to a non-member. See
 [ADR-10](adr/0010-tasks-carry-organization-and-project.md).
 
+## Caching
+
+`GET /tasks/stats` — task counts by status and the completion rate they
+imply, for one organization — is the first cached read in the codebase.
+It's cached in Redis under `stats:tasks:{organizationId}` and read through
+a narrow `Cache` interface
+([src/lib/cache.ts](../src/lib/cache.ts)), the same shape as
+`NotificationsQueue`: `tasks.service.ts` depends on `get`/`set`/`del`, not
+an `ioredis` client directly, so the integration suite can substitute an
+in-memory fake.
+
+The TTL on each cached entry is a backstop, not the freshness mechanism.
+`create` and `PATCH /tasks/:id/status` — the only two writes that change a
+task's status distribution — each delete the cached entry for their
+organization the moment they commit, so a cache hit is either fresh or
+absent, never stale. See
+[ADR-17](adr/0017-cache-task-stats-with-explicit-invalidation.md).
+
+## Health checks
+
+`GET /health` reports liveness only — the process is running and
+answering requests, nothing more. It never touches Postgres or Redis, so a
+dependency outage can't make an orchestrator kill a container that would
+otherwise recover once the dependency does. `GET /health/ready` is what
+actually reaches both, concurrently, and reports per-dependency status
+rather than a bare pass/fail. Neither route is documented in the OpenAPI
+spec, the same treatment `/openapi.json` itself gets: they describe
+infrastructure, not API surface.
+
 ## Testing
 
 Integration tests run against a real PostgreSQL database, not mocks
@@ -241,7 +271,7 @@ ran after the handler would return the same status over a deleted row.
 
 ## Not here yet
 
-No caching, structured logging, or rate limiting.
+No structured logging or rate limiting.
 No file uploads. Nothing is deployed. There is no concurrency control on
 updates: two clients writing the same task is last-write-wins, and optimistic
 locking is the intended fix. Nothing prevents the last `OWNER` of an

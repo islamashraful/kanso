@@ -1,11 +1,31 @@
 import type { TaskModel as Task } from '@/generated/prisma/models';
 import type { NotificationsQueue } from '@/jobs/notifications.job';
+import type { Cache } from '@/lib/cache';
 import type { Db } from '@/lib/db';
 import { NotFoundError } from '@/lib/errors';
 import type { Page } from '@/lib/pagination';
 import { toOrderBy, toPage, toSkipTake } from '@/lib/pagination';
 
-import type { CreateTaskInput, ListTasksQuery } from './tasks.schema';
+import type {
+  CreateTaskInput,
+  ListTasksQuery,
+  TaskStatsResponse,
+  UpdateTaskStatusInput,
+} from './tasks.schema';
+
+/**
+ * One key per organization: stats are computed across all of an org's tasks,
+ * not per project, so that's the only thing the key needs to name. See
+ * docs/adr/0017.
+ */
+const statsCacheKey = (organizationId: string) => `stats:tasks:${organizationId}`;
+
+/**
+ * A backstop against a missed invalidation, not the freshness mechanism —
+ * every write that changes the counts below explicitly deletes the key. See
+ * docs/adr/0017.
+ */
+const STATS_CACHE_TTL_SECONDS = 300;
 
 /**
  * Task business logic.
@@ -19,7 +39,7 @@ import type { CreateTaskInput, ListTasksQuery } from './tasks.schema';
  * repetition is deliberate: it makes an unscoped query visually obvious in
  * review, which is the failure that would leak one tenant's data to another.
  */
-export const createTasksService = (db: Db, notifications: NotificationsQueue) => ({
+export const createTasksService = (db: Db, notifications: NotificationsQueue, cache: Cache) => ({
   async list(organizationId: string, query: ListTasksQuery): Promise<Page<Task>> {
     const where = {
       organizationId,
@@ -75,7 +95,7 @@ export const createTasksService = (db: Db, notifications: NotificationsQueue) =>
 
     if (!project) throw new NotFoundError('Project not found');
 
-    return db.task.create({
+    const task = await db.task.create({
       data: {
         organizationId,
         projectId: input.projectId,
@@ -83,6 +103,60 @@ export const createTasksService = (db: Db, notifications: NotificationsQueue) =>
         status: input.status,
       },
     });
+
+    // A new task changes both `total` and the count for its starting status.
+    await cache.del(statsCacheKey(organizationId));
+
+    return task;
+  },
+
+  /**
+   * The only endpoint that moves a task between statuses, which makes it the
+   * other write `stats` has to invalidate against — creation changes `total`,
+   * this changes the distribution across it. See docs/adr/0017.
+   */
+  async updateStatus(
+    organizationId: string,
+    id: string,
+    status: UpdateTaskStatusInput['status'],
+  ): Promise<Task> {
+    const task = await db.task.findFirst({ where: { id, organizationId }, select: { id: true } });
+    if (!task) throw new NotFoundError('Task not found');
+
+    const updated = await db.task.update({ where: { id }, data: { status } });
+    await cache.del(statsCacheKey(organizationId));
+
+    return updated;
+  },
+
+  /**
+   * Task counts by status and the completion rate they imply, cached behind
+   * `statsCacheKey` rather than recomputed on every request. The TTL is a
+   * backstop; `create` and `updateStatus` are what actually keep this fresh,
+   * by deleting the key the moment either changes the numbers. See
+   * docs/adr/0017.
+   */
+  async stats(organizationId: string): Promise<TaskStatsResponse> {
+    const key = statsCacheKey(organizationId);
+    const cached = await cache.get(key);
+    if (cached) return JSON.parse(cached) as TaskStatsResponse;
+
+    const counts = await db.task.groupBy({
+      by: ['status'],
+      where: { organizationId },
+      _count: true,
+    });
+
+    const byStatus = { OPEN: 0, IN_PROGRESS: 0, DONE: 0 };
+    for (const row of counts) byStatus[row.status] = row._count;
+
+    const total = byStatus.OPEN + byStatus.IN_PROGRESS + byStatus.DONE;
+    const completionRate = total === 0 ? 0 : Math.round((byStatus.DONE / total) * 100);
+    const stats: TaskStatsResponse = { total, byStatus, completionRate };
+
+    await cache.set(key, JSON.stringify(stats), STATS_CACHE_TTL_SECONDS);
+
+    return stats;
   },
 
   /**

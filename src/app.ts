@@ -2,6 +2,7 @@ import express, { type Express } from 'express';
 
 import type { Config } from '@/config';
 import type { NotificationsQueue } from '@/jobs/notifications.job';
+import type { Cache } from '@/lib/cache';
 import type { Db } from '@/lib/db';
 import { createErrorHandler } from '@/middleware/error-handler';
 import { notFound } from '@/middleware/not-found';
@@ -30,6 +31,7 @@ export interface Deps {
   db: Db;
   notifications: NotificationsQueue;
   redis: Pingable;
+  cache: Cache;
 }
 
 /**
@@ -59,7 +61,7 @@ export const createApp = (deps: Deps): Express => {
   const authService = createAuthService(deps.db, tokens, deps.config);
   const organizationsService = createOrganizationsService(deps.db);
   const projectsService = createProjectsService(deps.db);
-  const tasksService = createTasksService(deps.db, deps.notifications);
+  const tasksService = createTasksService(deps.db, deps.notifications, deps.cache);
 
   const v1 = express.Router();
   // Mounted without requireAuth: these endpoints issue the credentials the

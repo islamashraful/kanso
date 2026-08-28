@@ -27,3 +27,4 @@ for the shape and [`../writing.md`](../writing.md) for the conventions.
 | [14](0014-offset-pagination-behind-a-response-envelope.md) | Offset pagination, behind a response envelope | Accepted |
 | [15](0015-generate-the-openapi-document-from-zod.md) | Generate the OpenAPI document from Zod, rendered by Scalar | Accepted |
 | [16](0016-background-jobs-with-bullmq.md) | Background jobs with BullMQ, queue as a fakeable dependency | Accepted |
+| [17](0017-cache-task-stats-with-explicit-invalidation.md) | Cache task stats in Redis, invalidated explicitly on the writes that change them | Accepted |

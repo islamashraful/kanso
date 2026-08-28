@@ -14,6 +14,8 @@ import {
   listTasksSchema,
   taskParamsSchema,
   taskResponseSchema,
+  taskStatsResponseSchema,
+  updateTaskStatusSchema,
 } from './tasks.schema';
 
 /**
@@ -51,6 +53,21 @@ export const taskPaths: ZodOpenApiPathsObject = {
     },
   },
 
+  '/api/v1/tasks/stats': {
+    get: {
+      tags: ['Tasks'],
+      summary: 'Task counts by status for the organization',
+      description:
+        'Cached in Redis and invalidated the moment a task is created or its status changes, rather than left to expire on a TTL. See docs/adr/0017.',
+      requestParams: { header: orgHeaderSchema },
+      responses: {
+        200: jsonResponse('Counts by status and the completion rate they imply.', taskStatsResponseSchema),
+        401: errorResponse('Missing or invalid access token.'),
+        404: errorResponse('No membership in the organization named by `x-org-id`.'),
+      },
+    },
+  },
+
   '/api/v1/tasks/{id}': {
     get: {
       tags: ['Tasks'],
@@ -79,6 +96,24 @@ export const taskPaths: ZodOpenApiPathsObject = {
         ...scopedFailures,
         404: errorResponse(
           'No such task in this organization, or `assigneeId` is not a member of it.',
+        ),
+      },
+    },
+  },
+
+  '/api/v1/tasks/{id}/status': {
+    patch: {
+      tags: ['Tasks'],
+      summary: "Change a task's status",
+      description:
+        'The only endpoint that moves a task between statuses, and what `GET /tasks/stats` invalidates its cache against. See docs/adr/0017.',
+      requestParams: { path: taskParamsSchema, header: orgHeaderSchema },
+      requestBody: { content: { 'application/json': { schema: updateTaskStatusSchema } } },
+      responses: {
+        200: jsonResponse('The task, with its new status.', taskResponseSchema),
+        ...scopedFailures,
+        404: errorResponse(
+          'No such task, or it belongs to another organization. See docs/adr/0007.',
         ),
       },
     },
