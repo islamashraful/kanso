@@ -61,7 +61,10 @@ export const taskPaths: ZodOpenApiPathsObject = {
         'Cached in Redis and invalidated the moment a task is created or its status changes, rather than left to expire on a TTL. See docs/adr/0017.',
       requestParams: { header: orgHeaderSchema },
       responses: {
-        200: jsonResponse('Counts by status and the completion rate they imply.', taskStatsResponseSchema),
+        200: jsonResponse(
+          'Counts by status and the completion rate they imply.',
+          taskStatsResponseSchema,
+        ),
         401: errorResponse('Missing or invalid access token.'),
         404: errorResponse('No membership in the organization named by `x-org-id`.'),
       },
