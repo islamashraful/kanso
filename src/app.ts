@@ -10,6 +10,8 @@ import { createRequireAuth } from '@/middleware/require-auth';
 import { createRequireUser } from '@/middleware/require-user';
 import { createAuthRouter } from '@/modules/auth/auth.routes';
 import { createAuthService } from '@/modules/auth/auth.service';
+import { createHealthRouter } from '@/modules/health/health.routes';
+import { createHealthService, type Pingable } from '@/modules/health/health.service';
 import { createOrganizationsRouter } from '@/modules/organizations/organizations.routes';
 import { createOrganizationsService } from '@/modules/organizations/organizations.service';
 import { createProjectsRouter } from '@/modules/projects/projects.routes';
@@ -27,6 +29,7 @@ export interface Deps {
   config: Config;
   db: Db;
   notifications: NotificationsQueue;
+  redis: Pingable;
 }
 
 /**
@@ -41,6 +44,11 @@ export interface Deps {
  */
 export const createApp = (deps: Deps): Express => {
   const app = express();
+
+  // Outside the JSON body parser: liveness and readiness are GET requests
+  // with no body, and no reason to depend on middleware that follows.
+  const healthService = createHealthService(deps.db, deps.redis);
+  app.use(createHealthRouter(healthService));
 
   app.use(express.json({ limit: '100kb' }));
 

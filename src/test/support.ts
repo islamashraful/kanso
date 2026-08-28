@@ -30,7 +30,18 @@ export const notifications = {
   },
 };
 
-export const app = createApp({ config, db, notifications });
+/**
+ * A fake in place of the real Redis client, for the same reason as
+ * `notifications` above: the ordinary suite asserts against the app's
+ * behavior, not Redis's. `health.readiness.test.ts` is the deliberate
+ * exception that pings a real connection, mirroring
+ * `notifications.worker.test.ts`.
+ */
+export const redis = {
+  ping: () => Promise.resolve('PONG'),
+};
+
+export const app = createApp({ config, db, notifications, redis });
 
 const tokens = createTokens(config);
 

@@ -50,8 +50,8 @@ const documentedOperations = (doc: Spec) =>
  * mounted on. `/reference` is absent because Scalar is mounted with `use` and
  * so is middleware rather than a route.
  */
-const INFRASTRUCTURE_PATHS = ['/openapi.json'];
-const INFRASTRUCTURE_OPERATIONS = ['GET /openapi.json'];
+const INFRASTRUCTURE_PATHS = ['/openapi.json', '/health', '/health/ready'];
+const INFRASTRUCTURE_OPERATIONS = ['GET /openapi.json', 'GET /health', 'GET /health/ready'];
 
 describe('GET /openapi.json', () => {
   test('serves an OpenAPI 3.1 document without credentials', async () => {

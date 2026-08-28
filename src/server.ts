@@ -5,8 +5,9 @@ import { createDb } from '@/lib/db';
 import { createRedisConnection } from '@/lib/queue';
 
 const db = createDb(config);
-const notifications = createNotificationsQueue(createRedisConnection(config));
-const app = createApp({ config, db, notifications });
+const redis = createRedisConnection(config);
+const notifications = createNotificationsQueue(redis);
+const app = createApp({ config, db, notifications, redis });
 
 const server = app.listen(config.PORT, () => {
   console.log(`kanso listening on http://localhost:${config.PORT} (${config.NODE_ENV})`);
@@ -36,8 +37,20 @@ const shutdown = (signal: string): void => {
       console.error('Error during shutdown:', err);
       process.exit(1);
     }
-    console.log('Shutdown complete');
-    process.exit(0);
+
+    // After the server stops accepting requests, not before: an in-flight
+    // request may still need the database or the queue to finish.
+    //
+    // The queue closes before the connection it was given: it's a shared
+    // connection, so BullMQ doesn't quit it on close, but it may still send
+    // a final command while shutting down.
+    void notifications
+      .close()
+      .then(() => Promise.all([db.$disconnect(), redis.quit()]))
+      .then(() => {
+        console.log('Shutdown complete');
+        process.exit(0);
+      });
   });
 };
 

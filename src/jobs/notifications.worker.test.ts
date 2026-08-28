@@ -108,7 +108,7 @@ describe('notifications worker', () => {
     const workerConnection = createRedisConnection(config);
     const notifications = createNotificationsQueue(queueConnection);
     const worker = createNotificationsWorker(workerConnection, db, fakeEmailSender);
-    const app = createApp({ config, db, notifications });
+    const app = createApp({ config, db, notifications, redis: queueConnection });
 
     try {
       const processed = new Promise<void>((resolve, reject) => {
