@@ -286,6 +286,25 @@ rather than a bare pass/fail. Neither route is documented in the OpenAPI
 spec, the same treatment `/openapi.json` itself gets: they describe
 infrastructure, not API surface.
 
+## Logging
+
+`pino` writes one JSON line per request (method, path, status, response
+time), plus whatever a controller or service logs explicitly, all to
+stdout — the shape a container runtime forwards to a log aggregator with no
+further application code (CloudWatch, once Week 4 points the ECS task
+definition at it).
+
+A request gets an id — reused from an incoming `x-request-id` header if the
+caller sent one, generated otherwise — and that id is opened as the current
+`AsyncLocalStorage` context for the rest of the request
+(`lib/request-context.ts`). Any code running inside that request calls
+`getLogger()` to get a logger already tagged with it, without the id being
+threaded through every function argument down to the service layer. This is
+why it isn't in `Deps` alongside the database or the cache: nothing about it
+is worth a test faking or asserting against, unlike the dependencies ADR-3
+actually argues for injecting — see
+[ADR-19](adr/0019-request-logging-via-asynclocalstorage-not-injection.md).
+
 ## Testing
 
 Integration tests run against a real PostgreSQL database, not mocks
@@ -304,7 +323,7 @@ ran after the handler would return the same status over a deleted row.
 
 ## Not here yet
 
-No structured logging or rate limiting. Nothing is deployed. There is no
+No rate limiting. Nothing is deployed. There is no
 concurrency control on updates: two clients writing the same task is
 last-write-wins, and optimistic locking is the intended fix. Nothing
 prevents the last `OWNER` of an organization leaving it. An attachment

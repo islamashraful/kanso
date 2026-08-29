@@ -2,6 +2,7 @@ import { createNotificationsWorker } from '@/jobs/notifications.worker';
 import { config } from '@/config';
 import { createConsoleEmailSender } from '@/lib/email';
 import { createDb } from '@/lib/db';
+import { logger } from '@/lib/logger';
 import { createRedisConnection } from '@/lib/queue';
 
 const db = createDb(config);
@@ -11,13 +12,13 @@ const emailSender = createConsoleEmailSender();
 const worker = createNotificationsWorker(connection, db, emailSender);
 
 worker.on('completed', (job) => {
-  console.log(`job ${job.id} (${job.name}) completed`);
+  logger.info({ jobId: job.id, jobName: job.name }, 'job completed');
 });
 worker.on('failed', (job, err) => {
-  console.error(`job ${job?.id} (${job?.name}) failed:`, err);
+  logger.error({ jobId: job?.id, jobName: job?.name, err }, 'job failed');
 });
 
-console.log('notifications worker listening');
+logger.info('notifications worker listening');
 
 /**
  * Graceful shutdown, parallel to `server.ts`. `worker.close()` first: it
@@ -27,10 +28,10 @@ console.log('notifications worker listening');
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 const shutdown = (signal: string): void => {
-  console.log(`${signal} received, shutting down`);
+  logger.info({ signal }, 'shutting down');
 
   const forceExit = setTimeout(() => {
-    console.error('Shutdown timed out, exiting anyway');
+    logger.error('shutdown timed out, exiting anyway');
     process.exit(1);
   }, SHUTDOWN_TIMEOUT_MS);
   forceExit.unref();
@@ -39,11 +40,11 @@ const shutdown = (signal: string): void => {
     .close()
     .then(() => connection.quit())
     .then(() => {
-      console.log('Shutdown complete');
+      logger.info('shutdown complete');
       process.exit(0);
     })
     .catch((err: unknown) => {
-      console.error('Error during shutdown:', err);
+      logger.error({ err }, 'error during shutdown');
       process.exit(1);
     });
 };

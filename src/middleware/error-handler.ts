@@ -2,6 +2,7 @@ import type { ErrorRequestHandler } from 'express';
 
 import type { Config } from '@/config';
 import { AppError, ValidationError } from '@/lib/errors';
+import { getLogger } from '@/lib/request-context';
 
 interface ErrorBody {
   error: {
@@ -34,7 +35,7 @@ export const createErrorHandler = (config: Config): ErrorRequestHandler => {
     }
 
     // Not an anticipated failure: log it in full, tell the client nothing.
-    console.error('Unhandled error:', err);
+    getLogger().error({ err }, 'unhandled error');
 
     const body: ErrorBody = {
       error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },

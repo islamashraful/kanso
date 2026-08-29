@@ -29,3 +29,4 @@ for the shape and [`../writing.md`](../writing.md) for the conventions.
 | [16](0016-background-jobs-with-bullmq.md) | Background jobs with BullMQ, queue as a fakeable dependency | Accepted |
 | [17](0017-cache-task-stats-with-explicit-invalidation.md) | Cache task stats in Redis, invalidated explicitly on the writes that change them | Accepted |
 | [18](0018-presigned-post-uploads-with-a-confirm-step.md) | Task attachments via presigned POST, confirmed by a server-side HEAD | Accepted |
+| [19](0019-request-logging-via-asynclocalstorage-not-injection.md) | Request-scoped logging via AsyncLocalStorage, not an injected dependency | Accepted |

@@ -3,6 +3,7 @@ import { config } from '@/config';
 import { createNotificationsQueue } from '@/jobs/notifications.job';
 import { createRedisCache } from '@/lib/cache';
 import { createDb } from '@/lib/db';
+import { logger } from '@/lib/logger';
 import { createRedisConnection } from '@/lib/queue';
 import { createS3Client, createS3ObjectStore } from '@/lib/s3';
 
@@ -14,7 +15,7 @@ const objectStore = createS3ObjectStore(createS3Client(config), config.S3_BUCKET
 const app = createApp({ config, db, notifications, redis, cache, objectStore });
 
 const server = app.listen(config.PORT, () => {
-  console.log(`kanso listening on http://localhost:${config.PORT} (${config.NODE_ENV})`);
+  logger.info({ port: config.PORT, env: config.NODE_ENV }, 'kanso listening');
 });
 
 /**
@@ -28,17 +29,17 @@ const server = app.listen(config.PORT, () => {
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 const shutdown = (signal: string): void => {
-  console.log(`${signal} received, shutting down`);
+  logger.info({ signal }, 'shutting down');
 
   const forceExit = setTimeout(() => {
-    console.error('Shutdown timed out, exiting anyway');
+    logger.error('shutdown timed out, exiting anyway');
     process.exit(1);
   }, SHUTDOWN_TIMEOUT_MS);
   forceExit.unref();
 
   server.close((err) => {
     if (err) {
-      console.error('Error during shutdown:', err);
+      logger.error({ err }, 'error during shutdown');
       process.exit(1);
     }
 
@@ -52,7 +53,7 @@ const shutdown = (signal: string): void => {
       .close()
       .then(() => Promise.all([db.$disconnect(), redis.quit()]))
       .then(() => {
-        console.log('Shutdown complete');
+        logger.info('shutdown complete');
         process.exit(0);
       });
   });

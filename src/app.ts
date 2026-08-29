@@ -7,6 +7,7 @@ import type { Db } from '@/lib/db';
 import type { ObjectStore } from '@/lib/s3';
 import { createErrorHandler } from '@/middleware/error-handler';
 import { notFound } from '@/middleware/not-found';
+import { requestLogger } from '@/middleware/request-logger';
 import { createTokens } from '@/lib/tokens';
 import { createRequireAuth } from '@/middleware/require-auth';
 import { createRequireUser } from '@/middleware/require-user';
@@ -50,6 +51,10 @@ export interface Deps {
  */
 export const createApp = (deps: Deps): Express => {
   const app = express();
+
+  // First, so every request — including the two below — gets a request id
+  // and a log line, regardless of what later middleware does with it.
+  app.use(requestLogger);
 
   // Outside the JSON body parser: liveness and readiness are GET requests
   // with no body, and no reason to depend on middleware that follows.
