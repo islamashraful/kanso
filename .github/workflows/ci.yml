@@ -44,26 +44,6 @@ jobs:
           --health-timeout 5s
           --health-retries 10
 
-      # S3-compatible object storage for src/lib/s3.test.ts, mirroring the
-      # minio service in docker-compose.yml. Service containers can't take a
-      # `command`, and plain minio/minio needs `server /data` to not just
-      # print usage and exit — so this uses the bitnami image instead, which
-      # runs the server from its default entrypoint and creates the bucket
-      # itself via MINIO_DEFAULT_BUCKETS.
-      minio:
-        image: bitnami/minio:latest
-        env:
-          MINIO_ROOT_USER: kanso
-          MINIO_ROOT_PASSWORD: kanso-minio
-          MINIO_DEFAULT_BUCKETS: kanso-test
-        ports:
-          - 9000:9000
-        options: >-
-          --health-cmd "curl -f http://localhost:9000/minio/health/live"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
     # The runner has no .env.test, so anything src/config requires has to be set
     # here. The signing key is a literal rather than a repository secret: it
     # signs tokens that exist for the length of one job, and a secret would hide
@@ -95,6 +75,22 @@ jobs:
 
       - name: Apply migrations
         run: bunx --bun prisma migrate deploy
+
+      # S3-compatible object storage for src/lib/s3.test.ts, mirroring the
+      # minio service in docker-compose.yml. This runs as a plain `docker run`
+      # rather than a `services:` entry: GitHub Actions gives service
+      # containers no way to pass a `command`, and minio/minio's default CMD
+      # prints usage and exits without one — it needs `server /data` to
+      # actually start.
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=kanso -e MINIO_ROOT_PASSWORD=kanso-minio \
+            minio/minio:latest server /data
+          timeout 30 sh -c 'until curl -sf http://localhost:9000/minio/health/live; do sleep 1; done'
+          docker run --rm --network host \
+            -e MC_HOST_local=http://kanso:kanso-minio@localhost:9000 \
+            minio/mc:latest mb --ignore-existing local/kanso-test
 
       - run: bun run lint
 
