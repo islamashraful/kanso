@@ -24,6 +24,17 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32, 'Must be at least 32 characters'),
   ACCESS_TOKEN_TTL: z.string().default('15m'),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
+
+  // Task attachments. S3_ENDPOINT/S3_FORCE_PATH_STYLE point the client at
+  // MinIO in dev and test; both are unset in production, where the AWS SDK
+  // resolves the real S3 endpoint itself and virtual-hosted-style addressing
+  // applies. See docs/adr/0018.
+  S3_BUCKET: z.string(),
+  S3_REGION: z.string().default('us-east-1'),
+  S3_ENDPOINT: z.url().optional(),
+  S3_FORCE_PATH_STYLE: z.coerce.boolean().default(false),
+  S3_ACCESS_KEY_ID: z.string(),
+  S3_SECRET_ACCESS_KEY: z.string(),
 });
 
 export type Config = Readonly<z.infer<typeof envSchema>>;

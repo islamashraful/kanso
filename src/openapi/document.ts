@@ -1,5 +1,6 @@
 import { createDocument } from 'zod-openapi';
 
+import { attachmentPaths } from '@/modules/attachments/attachments.openapi';
 import { authPaths } from '@/modules/auth/auth.openapi';
 import { organizationPaths } from '@/modules/organizations/organizations.openapi';
 import { projectPaths } from '@/modules/projects/projects.openapi';
@@ -42,6 +43,13 @@ export const buildOpenApiDocument = () =>
       { name: 'Organizations', description: 'Tenants. Created before anything else.' },
       { name: 'Projects', description: 'Containers for tasks, scoped to one organization.' },
       { name: 'Tasks', description: 'Units of work, scoped to one organization.' },
+      { name: 'Attachments', description: 'Files uploaded directly to S3 and attached to a task.' },
     ],
-    paths: { ...authPaths, ...organizationPaths, ...projectPaths, ...taskPaths },
+    paths: {
+      ...authPaths,
+      ...organizationPaths,
+      ...projectPaths,
+      ...taskPaths,
+      ...attachmentPaths,
+    },
   });

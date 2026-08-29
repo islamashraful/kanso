@@ -7,7 +7,7 @@ import { createNotificationsQueue } from '@/jobs/notifications.job';
 import { createNotificationsWorker } from '@/jobs/notifications.worker';
 import type { EmailSender } from '@/lib/email';
 import { createRedisConnection } from '@/lib/queue';
-import { asUser, cache, db, resetDatabase, seed } from '@/test/support';
+import { asUser, cache, db, objectStore, resetDatabase, seed } from '@/test/support';
 
 /**
  * The tests in this file talk to real Redis, proving the queue and worker
@@ -108,7 +108,14 @@ describe('notifications worker', () => {
     const workerConnection = createRedisConnection(config);
     const notifications = createNotificationsQueue(queueConnection);
     const worker = createNotificationsWorker(workerConnection, db, fakeEmailSender);
-    const app = createApp({ config, db, notifications, redis: queueConnection, cache });
+    const app = createApp({
+      config,
+      db,
+      notifications,
+      redis: queueConnection,
+      cache,
+      objectStore,
+    });
 
     try {
       const processed = new Promise<void>((resolve, reject) => {

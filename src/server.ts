@@ -4,12 +4,14 @@ import { createNotificationsQueue } from '@/jobs/notifications.job';
 import { createRedisCache } from '@/lib/cache';
 import { createDb } from '@/lib/db';
 import { createRedisConnection } from '@/lib/queue';
+import { createS3Client, createS3ObjectStore } from '@/lib/s3';
 
 const db = createDb(config);
 const redis = createRedisConnection(config);
 const notifications = createNotificationsQueue(redis);
 const cache = createRedisCache(redis);
-const app = createApp({ config, db, notifications, redis, cache });
+const objectStore = createS3ObjectStore(createS3Client(config), config.S3_BUCKET);
+const app = createApp({ config, db, notifications, redis, cache, objectStore });
 
 const server = app.listen(config.PORT, () => {
   console.log(`kanso listening on http://localhost:${config.PORT} (${config.NODE_ENV})`);

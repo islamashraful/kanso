@@ -97,6 +97,7 @@ describe('GET /openapi.json', () => {
       'GET /api/v1/tasks',
       'GET /api/v1/tasks/stats',
       'GET /api/v1/tasks/{id}',
+      'GET /api/v1/tasks/{taskId}/attachments',
       'PATCH /api/v1/tasks/{id}/status',
       'POST /api/v1/auth/login',
       'POST /api/v1/auth/logout',
@@ -106,6 +107,8 @@ describe('GET /openapi.json', () => {
       'POST /api/v1/projects',
       'POST /api/v1/tasks',
       'POST /api/v1/tasks/{id}/assign',
+      'POST /api/v1/tasks/{taskId}/attachments',
+      'POST /api/v1/tasks/{taskId}/attachments/presign',
     ]);
   });
 
@@ -155,10 +158,13 @@ describe('GET /openapi.json', () => {
       'GET /api/v1/tasks',
       'GET /api/v1/tasks/stats',
       'GET /api/v1/tasks/{id}',
+      'GET /api/v1/tasks/{taskId}/attachments',
       'PATCH /api/v1/tasks/{id}/status',
       'POST /api/v1/projects',
       'POST /api/v1/tasks',
       'POST /api/v1/tasks/{id}/assign',
+      'POST /api/v1/tasks/{taskId}/attachments',
+      'POST /api/v1/tasks/{taskId}/attachments/presign',
     ]);
   });
 
@@ -180,12 +186,14 @@ describe('GET /openapi.json', () => {
     const schemas = (await spec()).components.schemas;
 
     expect(Object.keys(schemas).toSorted()).toEqual([
+      'Attachment',
       'AuthResponse',
       'AuthUser',
       'Error',
       'Organization',
       'OrganizationMembership',
       'PageMeta',
+      'PresignedPost',
       'Project',
       'ProjectPage',
       'Task',

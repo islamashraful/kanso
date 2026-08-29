@@ -64,7 +64,39 @@ export const cache = {
   },
 };
 
-export const app = createApp({ config, db, notifications, redis, cache });
+/**
+ * A fake in place of the real S3-backed `ObjectStore`, for the same reason
+ * as `cache` above: the ordinary suite asserts against the app's behavior,
+ * not a real bucket. `lib/s3.test.ts` is the deliberate real-MinIO
+ * exception, mirroring `lib/cache.test.ts`. See docs/adr/0018.
+ *
+ * `createPresignedPost` deliberately does not place anything in `uploads` —
+ * a real presigned POST does not touch the bucket either, only a later
+ * upload against the returned URL does. Tests that need `confirm` to
+ * succeed call `simulateUpload` first, standing in for that direct
+ * client-to-bucket request.
+ */
+export const objectStore = {
+  uploads: new Map<string, { contentType: string; size: number }>(),
+  createPresignedPost(params: { key: string; contentType: string }) {
+    return Promise.resolve({
+      url: 'https://fake-bucket.test/upload',
+      fields: { key: params.key, 'Content-Type': params.contentType },
+    });
+  },
+  headObject(key: string) {
+    return Promise.resolve(objectStore.uploads.get(key) ?? null);
+  },
+};
+
+export const simulateUpload = (
+  key: string,
+  object: { contentType: string; size: number },
+): void => {
+  objectStore.uploads.set(key, object);
+};
+
+export const app = createApp({ config, db, notifications, redis, cache, objectStore });
 
 const tokens = createTokens(config);
 
@@ -166,6 +198,7 @@ export const resetDatabase = async () => {
   await db.user.deleteMany();
   notifications.calls = [];
   cache.store.clear();
+  objectStore.uploads.clear();
 };
 
 /** The envelope every paginated collection returns. See docs/adr/0014. */

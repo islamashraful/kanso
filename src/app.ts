@@ -4,11 +4,14 @@ import type { Config } from '@/config';
 import type { NotificationsQueue } from '@/jobs/notifications.job';
 import type { Cache } from '@/lib/cache';
 import type { Db } from '@/lib/db';
+import type { ObjectStore } from '@/lib/s3';
 import { createErrorHandler } from '@/middleware/error-handler';
 import { notFound } from '@/middleware/not-found';
 import { createTokens } from '@/lib/tokens';
 import { createRequireAuth } from '@/middleware/require-auth';
 import { createRequireUser } from '@/middleware/require-user';
+import { createAttachmentsRouter } from '@/modules/attachments/attachments.routes';
+import { createAttachmentsService } from '@/modules/attachments/attachments.service';
 import { createAuthRouter } from '@/modules/auth/auth.routes';
 import { createAuthService } from '@/modules/auth/auth.service';
 import { createHealthRouter } from '@/modules/health/health.routes';
@@ -32,6 +35,7 @@ export interface Deps {
   notifications: NotificationsQueue;
   redis: Pingable;
   cache: Cache;
+  objectStore: ObjectStore;
 }
 
 /**
@@ -62,6 +66,7 @@ export const createApp = (deps: Deps): Express => {
   const organizationsService = createOrganizationsService(deps.db);
   const projectsService = createProjectsService(deps.db, deps.cache);
   const tasksService = createTasksService(deps.db, deps.notifications, deps.cache);
+  const attachmentsService = createAttachmentsService(deps.db, deps.objectStore);
 
   const v1 = express.Router();
   // Mounted without requireAuth: these endpoints issue the credentials the
@@ -72,6 +77,7 @@ export const createApp = (deps: Deps): Express => {
   v1.use('/organizations', requireUser, createOrganizationsRouter(organizationsService));
   v1.use('/projects', requireAuth, createProjectsRouter(projectsService));
   v1.use('/tasks', requireAuth, createTasksRouter(tasksService));
+  v1.use('/tasks/:taskId/attachments', requireAuth, createAttachmentsRouter(attachmentsService));
 
   app.use('/api/v1', v1);
 

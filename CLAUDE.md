@@ -36,8 +36,8 @@ written the day the decision is made.
 
 ## Verify
 
-Requires `docker compose up -d` (Postgres and Redis) — the integration tests
-run against real infrastructure, not mocks.
+Requires `docker compose up -d` (Postgres, Redis and MinIO) — the integration
+tests run against real infrastructure, not mocks.
 
 ```
 bun run lint && bun run typecheck && bun run format:check && bun test

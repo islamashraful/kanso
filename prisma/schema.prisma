@@ -22,6 +22,7 @@ model User {
 
   memberships   Membership[]
   refreshTokens RefreshToken[]
+  attachments   Attachment[]
 
   @@map("users")
 }
@@ -57,6 +58,7 @@ model Organization {
   memberships Membership[]
   projects    Project[]
   tasks       Task[]
+  attachments Attachment[]
 
   @@map("organizations")
 }
@@ -90,6 +92,10 @@ enum TaskStatus {
 /// project. The organizationId is stored on the task rather than reached
 /// through the project, so every query filters on it directly; the composite
 /// foreign key below is what stops the two from disagreeing. See docs/adr/0010.
+///
+/// The unique on (id, organizationId) exists for the same reason as
+/// Project's: Attachment references the pair rather than the id alone. See
+/// docs/adr/0018.
 model Task {
   id             String     @id @default(uuid(7))
   organizationId String
@@ -112,7 +118,9 @@ model Task {
   // is no membership-removal endpoint yet to make this reachable; when one
   // exists it must clear assigneeId itself before removing a membership.
   assignee     Membership?  @relation(fields: [assigneeId, organizationId], references: [userId, organizationId], onDelete: Restrict)
+  attachments  Attachment[]
 
+  @@unique([id, organizationId])
   @@index([organizationId])
   @@index([projectId, organizationId])
   @@map("tasks")
@@ -142,4 +150,32 @@ model Membership {
   @@unique([userId, organizationId])
   @@index([organizationId])
   @@map("memberships")
+}
+
+/// A file uploaded to S3 (or MinIO in dev) and attached to a task. The row
+/// is written only after the object is confirmed to exist via `headObject`
+/// — the client uploads directly to the bucket via a presigned POST, so
+/// this table is the record that an upload actually landed, not the upload
+/// itself. `size` and `contentType` are read back from the bucket, not
+/// trusted from the client's presign request. See docs/adr/0018.
+model Attachment {
+  id             String   @id @default(uuid(7))
+  organizationId String
+  taskId         String
+  /// The S3 object key, generated server-side at presign time, e.g.
+  /// orgs/{organizationId}/tasks/{taskId}/{uuid}-{fileName}.
+  key            String   @unique
+  fileName       String
+  contentType    String
+  size           Int
+  uploadedById   String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  task         Task         @relation(fields: [taskId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  uploadedBy   User         @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([taskId, organizationId])
+  @@map("attachments")
 }

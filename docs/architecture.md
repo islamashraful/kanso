@@ -32,7 +32,8 @@ src/
   worker.ts               owns the worker process: consumes the notifications queue
   config/                 the only place that reads process.env
   lib/                    db client, error classes, token signing, pagination,
-                          Redis connection, Redis-backed cache, email sender
+                          Redis connection, Redis-backed cache, S3 object store,
+                          email sender
   middleware/             validate, requireUser, requireAuth, requireOrgRole,
                           notFound, errorHandler
   openapi/                shared components, the document, /openapi.json
@@ -42,6 +43,7 @@ src/
     organizations/        create, list
     projects/             list, read, create, delete
     tasks/                list, read, create, assign, change status, stats
+    attachments/          presign an upload, confirm it, list a task's attachments
     health/               liveness and readiness
   test/support.ts         one app and one database client, shared by the suite
 ```
@@ -65,7 +67,10 @@ erDiagram
     Organization ||--o{ Project : owns
     Organization ||--o{ Task : owns
     Project ||--o{ Task : contains
+    Task ||--o{ Attachment : has
+    Organization ||--o{ Attachment : owns
     User ||--o{ RefreshToken : holds
+    User ||--o{ Attachment : uploads
 ```
 
 An **organization** is the tenant. A **user** exists independently of any
@@ -247,6 +252,29 @@ entirely — a script, another service, a migration — which no set of
 [ADR-17](adr/0017-cache-task-stats-with-explicit-invalidation.md), including
 its "Known gap" section for the reasoning behind that boundary.
 
+## Attachments
+
+Task attachments upload directly from the client to S3 (MinIO in dev and
+test), never through the app server. `POST /tasks/:taskId/attachments/presign`
+returns a presigned POST — a short-lived URL and form fields — scoped to one
+server-generated key and one content-type from a closed allowlist, with a
+size cap enforced by S3 itself via the policy's `content-length-range`
+condition. The client uploads to that URL directly; this API never receives
+the file's bytes.
+
+A presigned POST has no server-side callback, so
+`POST /tasks/:taskId/attachments` is a separate confirm step: given the key
+back, it runs `HeadObject` against the bucket and only writes the
+`Attachment` row if the object actually exists there, reading `size` and
+`contentType` back from the bucket rather than trusting the client's
+original claim. `attachments.service.ts` depends on `ObjectStore`
+([src/lib/s3.ts](../src/lib/s3.ts)), the same narrow-interface shape as
+`Cache` and `NotificationsQueue`, so the integration suite substitutes an
+in-memory fake and `lib/s3.test.ts` is the deliberate real-bucket exception,
+proving the presigned policy is actually enforced by performing a real
+upload against MinIO. See
+[ADR-18](adr/0018-presigned-post-uploads-with-a-confirm-step.md).
+
 ## Health checks
 
 `GET /health` reports liveness only — the process is running and
@@ -276,8 +304,11 @@ ran after the handler would return the same status over a deleted row.
 
 ## Not here yet
 
-No structured logging or rate limiting.
-No file uploads. Nothing is deployed. There is no concurrency control on
-updates: two clients writing the same task is last-write-wins, and optimistic
-locking is the intended fix. Nothing prevents the last `OWNER` of an
-organization leaving it.
+No structured logging or rate limiting. Nothing is deployed. There is no
+concurrency control on updates: two clients writing the same task is
+last-write-wins, and optimistic locking is the intended fix. Nothing
+prevents the last `OWNER` of an organization leaving it. An attachment
+abandoned between presign and confirm — uploaded but never confirmed, or
+confirmed key never uploaded to — has no cleanup; see
+[ADR-18](adr/0018-presigned-post-uploads-with-a-confirm-step.md)'s
+Consequences.

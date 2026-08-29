@@ -33,6 +33,44 @@ services:
       timeout: 5s
       retries: 5
 
+  # S3-compatible object storage for local dev and tests. Same POST Policy
+  # API as real S3, so the presigned-post code path is identical here and
+  # against AWS — only the client's endpoint/forcePathStyle config differs.
+  # Real S3 gets wired up in Week 4.
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: kanso
+      MINIO_ROOT_PASSWORD: kanso-minio
+    ports:
+      - '9000:9000' # S3 API
+      - '9001:9001' # web console
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # One-shot: creates the dev and test buckets, then exits. MinIO itself has
+  # no "create this bucket on boot" option, unlike a real AWS account where
+  # the bucket is provisioned once via Terraform/console ahead of time.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 kanso kanso-minio &&
+      mc mb --ignore-existing local/kanso-dev &&
+      mc mb --ignore-existing local/kanso-test
+      "
+
 volumes:
   postgres-data:
   redis-data:
+  minio-data:

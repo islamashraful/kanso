@@ -22,7 +22,7 @@ Requires Bun and Docker.
 cp .env.example .env
 cp .env.test.example .env.test   # tests use a separate database
 
-docker compose up -d             # Postgres, and kanso_test alongside it
+docker compose up -d             # Postgres, Redis, MinIO (kanso_test alongside kanso)
 bun install
 bun run db:migrate               # development database
 bun run db:migrate:test          # test database
