@@ -45,14 +45,17 @@ jobs:
           --health-retries 10
 
       # S3-compatible object storage for src/lib/s3.test.ts, mirroring the
-      # minio service in docker-compose.yml. No service-level healthcheck
-      # option here (unlike postgres/redis, GitHub can't run `mc` against
-      # it), so the bucket-creation step below polls readiness itself.
+      # minio service in docker-compose.yml. Service containers can't take a
+      # `command`, and plain minio/minio needs `server /data` to not just
+      # print usage and exit — so this uses the bitnami image instead, which
+      # runs the server from its default entrypoint and creates the bucket
+      # itself via MINIO_DEFAULT_BUCKETS.
       minio:
-        image: minio/minio:latest
+        image: bitnami/minio:latest
         env:
           MINIO_ROOT_USER: kanso
           MINIO_ROOT_PASSWORD: kanso-minio
+          MINIO_DEFAULT_BUCKETS: kanso-test
         ports:
           - 9000:9000
         options: >-
@@ -92,14 +95,6 @@ jobs:
 
       - name: Apply migrations
         run: bunx --bun prisma migrate deploy
-
-      # MinIO has no "create this bucket on boot" option, same as local dev
-      # (see docker-compose.yml's minio-init).
-      - name: Create MinIO test bucket
-        run: |
-          docker run --rm --network host \
-            -e MC_HOST_local=http://kanso:kanso-minio@localhost:9000 \
-            minio/mc:latest mb --ignore-existing local/kanso-test
 
       - run: bun run lint
 
