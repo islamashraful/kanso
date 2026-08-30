@@ -1,4 +1,5 @@
 import type { Config } from '@/config';
+import { Prisma } from '@/generated/prisma/client';
 import type { Db } from '@/lib/db';
 import { ConflictError, UnauthorizedError } from '@/lib/errors';
 import type { Tokens } from '@/lib/tokens';
@@ -76,17 +77,30 @@ export const createAuthService = (db: Db, tokens: Tokens, config: Config) => ({
     // yet. Revisit when one does.
     if (existing) throw new ConflictError('Email already registered');
 
-    const user = await db.user.create({
-      data: {
-        email: input.email,
-        name: input.name,
-        // Bun's default is argon2id, and the parameters it chose are written
-        // into the hash — so raising the cost later leaves old hashes verifying
-        // under their own settings rather than locking anyone out.
-        passwordHash: await Bun.password.hash(input.password),
-      },
-      select: { id: true, email: true, name: true },
-    });
+    let user;
+    try {
+      user = await db.user.create({
+        data: {
+          email: input.email,
+          name: input.name,
+          // Bun's default is argon2id, and the parameters it chose are written
+          // into the hash — so raising the cost later leaves old hashes verifying
+          // under their own settings rather than locking anyone out.
+          passwordHash: await Bun.password.hash(input.password),
+        },
+        select: { id: true, email: true, name: true },
+      });
+    } catch (error) {
+      // The check above has a race window: two requests for the same email
+      // can both pass it before either commits. Left unhandled, the loser
+      // reaches the error middleware as a 500 instead of the 409 every other
+      // duplicate-email path returns. Same reasoning as
+      // `organizations.service.ts`'s `create`.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictError('Email already registered');
+      }
+      throw error;
+    }
 
     return { user, ...(await issueTokens(db, tokens, config, user.id)) };
   },

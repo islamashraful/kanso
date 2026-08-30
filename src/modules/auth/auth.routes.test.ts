@@ -65,6 +65,22 @@ describe('POST /api/v1/auth/register', () => {
     expect(json<ErrorResponse>(res).error.code).toBe('CONFLICT');
   });
 
+  it('rejects a duplicate email even when two registrations race', async () => {
+    // Fired together rather than awaited one at a time, so both can pass
+    // the pre-check before either commits — the race the service's own
+    // `db.user.create` catch exists to close. One request must win with
+    // 201; the other must still come back as a clean 409, never a 500.
+    const [first, second] = await Promise.all([register(), register()]);
+
+    const statuses = [first.status, second.status].sort();
+    expect(statuses).toEqual([201, 409]);
+
+    const loser = first.status === 409 ? first : second;
+    expect(json<ErrorResponse>(loser).error.code).toBe('CONFLICT');
+
+    expect(await db.user.count({ where: { email: CREDENTIALS.email } })).toBe(1);
+  });
+
   it('rejects a short password with a field-level message', async () => {
     const res = await request(app)
       .post('/api/v1/auth/register')
