@@ -348,6 +348,27 @@ failed transaction leaves no organization behind, and that a rejected request
 changed nothing — a 403 test asserts the row still exists, since a guard that
 ran after the handler would return the same status over a deleted row.
 
+## Packaging
+
+A three-stage `Dockerfile` builds one image, used for both processes: the
+API by default (`CMD ["bun", "src/server.ts"]`) and the worker as the same
+image with its command overridden at deploy time (`bun src/worker.ts`).
+The stages exist to keep the Prisma CLI — a devDependency, needed only to
+generate the client — out of the image that actually runs: `deps` installs
+everything, `build` generates the client on top of it, and `runtime`
+starts fresh with production-only dependencies plus just the generated
+client and `src/` copied over. The image declares its own `HEALTHCHECK`
+against `GET /health`, liveness only, for the same reason the endpoint
+itself is liveness-only — a dependency outage should not read as the
+container needing to be killed.
+
+CI builds this image on every push, gated on the test suite passing first,
+starts it against real Postgres, Redis and MinIO, and waits for it to
+report healthy before checking `/health/ready` directly — proving the
+image is runnable, not just that it builds. Nothing is pushed to a
+registry yet; that, and actually deploying from a pulled image, is Week 4.
+See [ADR-21](adr/0021-multi-stage-dockerfile-one-image-both-processes.md).
+
 ## Not here yet
 
 Nothing is deployed. There is no

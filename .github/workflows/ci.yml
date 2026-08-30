@@ -99,3 +99,72 @@ jobs:
       - run: bun run format:check
 
       - run: bun test
+
+  docker:
+    runs-on: ubuntu-latest
+    # Only worth building if the code it packages actually passes — a broken
+    # build's image would never be deployable anyway.
+    needs: verify
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: kanso
+          POSTGRES_PASSWORD: kanso
+          POSTGRES_DB: kanso
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kanso -d kanso"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the image
+        run: docker build -t kanso:ci .
+
+      # Same reasoning and the same `--network host` MinIO needs above: a
+      # container started directly on the runner reaches the service
+      # containers' ports through the runner's own `localhost`, not through a
+      # bridge network the runner isn't on.
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio --network host \
+            -e MINIO_ROOT_USER=kanso -e MINIO_ROOT_PASSWORD=kanso-minio \
+            minio/minio:latest server /data
+          timeout 30 sh -c 'until curl -sf http://localhost:9000/minio/health/live; do sleep 1; done'
+
+      # Proves the image is not just buildable but actually runnable: it
+      # starts, connects to real Postgres and Redis, and answers both health
+      # endpoints — not just the liveness one Docker's own HEALTHCHECK uses.
+      - name: Run the image and check it comes up healthy
+        run: |
+          docker run -d --name kanso --network host \
+            -e DATABASE_URL="postgresql://kanso:kanso@localhost:5432/kanso" \
+            -e REDIS_URL="redis://localhost:6379" \
+            -e JWT_SECRET="any-32-character-string-works-for-ci-here" \
+            -e S3_BUCKET="kanso-ci" \
+            -e S3_ENDPOINT="http://localhost:9000" \
+            -e S3_FORCE_PATH_STYLE="true" \
+            -e S3_ACCESS_KEY_ID="kanso" \
+            -e S3_SECRET_ACCESS_KEY="kanso-minio" \
+            kanso:ci
+
+          timeout 30 sh -c 'until [ "$(docker inspect -f "{{.State.Health.Status}}" kanso)" = "healthy" ]; do sleep 1; done' \
+            || { docker logs kanso; exit 1; }
+
+          curl -sf http://localhost:3000/health/ready | tee /dev/stderr | grep -q '"status":"ok"'
