@@ -121,6 +121,48 @@ describe('POST /api/v1/auth/login', () => {
       expect(row.tokenHash).not.toBe(refreshToken);
     }
   });
+
+  it('blocks further attempts against one account after too many failures', async () => {
+    // A dedicated email, not CREDENTIALS.email: this test's count must not
+    // pick up the failed attempt the earlier "wrong password" test already
+    // made against that key.
+    const email = 'brute-force-target@test.local';
+    await request(app)
+      .post('/api/v1/auth/register')
+      .send({ ...CREDENTIALS, email });
+
+    // The limit is 5 failures per window.
+    for (let i = 0; i < 5; i++) {
+      const res = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email, password: 'wrong-password-entirely' });
+      expect(res.status).toBe(401);
+    }
+
+    // The 6th request is blocked by the limiter itself, before the password
+    // is even checked — a correct password does not get through either.
+    const res = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email, password: CREDENTIALS.password });
+
+    expect(res.status).toBe(429);
+    expect(json<ErrorResponse>(res).error.code).toBe('RATE_LIMITED');
+  });
+
+  it('does not count a successful login against the limit', async () => {
+    const email = 'frequent-flyer@test.local';
+    await request(app)
+      .post('/api/v1/auth/register')
+      .send({ ...CREDENTIALS, email });
+
+    // More than the failure limit (5), all with the correct password.
+    for (let i = 0; i < 8; i++) {
+      const res = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email, password: CREDENTIALS.password });
+      expect(res.status).toBe(200);
+    }
+  });
 });
 
 describe('POST /api/v1/auth/refresh', () => {

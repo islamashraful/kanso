@@ -48,6 +48,13 @@ export class ConflictError extends AppError {
   }
 }
 
+/** The caller has made too many requests in the current window. */
+export class TooManyRequestsError extends AppError {
+  constructor(message = 'Too many requests') {
+    super(429, 'RATE_LIMITED', message);
+  }
+}
+
 export class ValidationError extends AppError {
   readonly details: { path: string; message: string }[];
 

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 
 import { validate } from '@/middleware/validate';
 
@@ -15,9 +15,14 @@ import type { AttachmentsService } from './attachments.service';
  *
  * Mounted under `/tasks/:taskId/attachments` with `mergeParams`, so
  * `taskId` from the parent path is visible to `attachmentParamsSchema`.
- * Auth is applied by the parent router that mounts this one.
+ * Auth is applied by the parent router that mounts this one, which is what
+ * lets `presignLimiter` key on `req.auth.userId`. See docs/adr/0018 and
+ * docs/adr/0020.
  */
-export const createAttachmentsRouter = (attachments: AttachmentsService): Router => {
+export const createAttachmentsRouter = (
+  attachments: AttachmentsService,
+  presignLimiter: RequestHandler,
+): Router => {
   const controller = createAttachmentsController(attachments);
   const router = Router({ mergeParams: true });
 
@@ -25,6 +30,7 @@ export const createAttachmentsRouter = (attachments: AttachmentsService): Router
   router.post(
     '/presign',
     validate({ params: attachmentParamsSchema, body: presignAttachmentSchema }),
+    presignLimiter,
     controller.presign,
   );
   router.post(

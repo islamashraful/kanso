@@ -90,6 +90,27 @@ describe('POST /api/v1/tasks/:taskId/attachments/presign', () => {
     expect(res.status).toBe(404);
     expect(json<ErrorResponse>(res).error.code).toBe('NOT_FOUND');
   });
+
+  it('rate-limits one user minting too many presigned uploads', async () => {
+    const task = await createTask(fixtures.acme.id, fixtures.acmeProject.id);
+    const presign = () =>
+      request(app)
+        .post(`/api/v1/tasks/${task.id}/attachments/presign`)
+        .set(asUser(fixtures.ada, fixtures.acme.id))
+        .send({ fileName: 'design.png', contentType: 'image/png' });
+
+    // The limit is 20 per window; each `seed()` mints a fresh user id, so
+    // this test's count starts from zero regardless of test order.
+    for (let i = 0; i < 20; i++) {
+      const res = await presign();
+      expect(res.status).toBe(201);
+    }
+
+    const res = await presign();
+
+    expect(res.status).toBe(429);
+    expect(json<ErrorResponse>(res).error.code).toBe('RATE_LIMITED');
+  });
 });
 
 describe('POST /api/v1/tasks/:taskId/attachments', () => {

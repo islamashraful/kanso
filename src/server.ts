@@ -12,7 +12,7 @@ const redis = createRedisConnection(config);
 const notifications = createNotificationsQueue(redis);
 const cache = createRedisCache(redis);
 const objectStore = createS3ObjectStore(createS3Client(config), config.S3_BUCKET);
-const app = createApp({ config, db, notifications, redis, cache, objectStore });
+const app = createApp({ config, db, notifications, redis, cache, objectStore, redisClient: redis });
 
 const server = app.listen(config.PORT, () => {
   logger.info({ port: config.PORT, env: config.NODE_ENV }, 'kanso listening');

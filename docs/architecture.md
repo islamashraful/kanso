@@ -275,6 +275,33 @@ proving the presigned policy is actually enforced by performing a real
 upload against MinIO. See
 [ADR-18](adr/0018-presigned-post-uploads-with-a-confirm-step.md).
 
+## Rate limiting
+
+Two layers, not one. A loose, IP-keyed limiter sits in front of the whole
+API (`app.use`, before the JSON body parser) and catches anonymous floods
+before they reach authentication or the database — it does not try to
+identify the caller, since an unauthenticated request may carry no
+credentials to identify them by. A second, tighter layer sits on specific
+endpoints where the abuse is precise rather than volumetric: `POST
+/auth/login` is keyed by IP and the email being attempted, so a brute-force
+run against one account is capped without capping every other person on the
+same IP, and only failed attempts count, so a legitimate user is never
+penalised for other traffic against the same key. `POST
+/tasks/:taskId/attachments/presign` is keyed by the caller's verified user
+id rather than IP, since it hands out a real S3 write grant and the caller
+is already authenticated by the time it runs.
+
+Both layers reuse the same Redis connection BullMQ and the cache already
+use — no new infrastructure — through a `RedisStore` from `rate-limit-redis`
+so counts are correct across every replica once there is more than one
+([lib/rate-limit.ts](../src/lib/rate-limit.ts)). The test suite omits the
+Redis connection and gets express-rate-limit's own in-memory store instead,
+which is exact for a single-process test run; `lib/rate-limit.test.ts` is
+the deliberate real-Redis exception, mirroring `lib/cache.test.ts`. A 429
+is thrown as `TooManyRequestsError` so it carries the same JSON shape as
+every other error, rather than express-rate-limit's own default response.
+See [ADR-20](adr/0020-rate-limiting-by-identity-where-available-ip-otherwise.md).
+
 ## Health checks
 
 `GET /health` reports liveness only — the process is running and
@@ -323,11 +350,16 @@ ran after the handler would return the same status over a deleted row.
 
 ## Not here yet
 
-No rate limiting. Nothing is deployed. There is no
+Nothing is deployed. There is no
 concurrency control on updates: two clients writing the same task is
 last-write-wins, and optimistic locking is the intended fix. Nothing
 prevents the last `OWNER` of an organization leaving it. An attachment
 abandoned between presign and confirm — uploaded but never confirmed, or
 confirmed key never uploaded to — has no cleanup; see
 [ADR-18](adr/0018-presigned-post-uploads-with-a-confirm-step.md)'s
-Consequences.
+Consequences. `req.ip` is trusted as-is: nothing sets Express's `trust
+proxy`, which is correct with no proxy in front today but wrong once Week 4
+puts an ALB in front of ECS — the IP-keyed limiters would see the ALB's
+address for every caller instead of the real one, unless `trust proxy` is
+configured for exactly one hop when that lands. See
+[ADR-20](adr/0020-rate-limiting-by-identity-where-available-ip-otherwise.md).
