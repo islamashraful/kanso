@@ -22,8 +22,13 @@ export const buildOpenApiDocument = () =>
     info: {
       title: 'Kanso API',
       version: '1.0.0',
-      description:
+      // Leads with the deployment status because the hosted copy of this
+      // reference has no API behind it: the page offers to send requests, and
+      // without this it would be offering to send them nowhere.
+      description: [
+        'Nothing is deployed. This describes an API that runs locally: start it with `bun run dev` and the endpoints answer on `http://localhost:3000`. Requests sent from this page reach an instance you are running yourself, or nothing at all.',
         'Multi-tenant task and project management. A request carries an access token for identity and, on organization-scoped routes, an `x-org-id` header naming the tenant — which is trusted only once a membership row proves the caller belongs to it.',
+      ].join('\n\n'),
     },
     // Applied to every path that does not override it. The four auth paths
     // override it with `security: []`, being how the token is obtained.

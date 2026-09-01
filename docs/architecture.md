@@ -160,11 +160,14 @@ declares its paths in `<module>.openapi.ts`, `src/openapi/document.ts`
 composes them, and the result is served as `/openapi.json` and rendered by
 Scalar at `/reference` — both outside `/api/v1` and outside authentication,
 since the document describes the shape of the API rather than any tenant's
-data. A parameter the reference describes is one the API enforces, because
-they are the same object. Response schemas are the exception: what leaves a
-service is a Prisma row, not a parsed Zod value, so each response schema is
-pinned to its model by two type-level assignments that fail to compile if the
-two diverge.
+data. CI writes the same two files to `dist/reference` on every push to main
+and publishes them to GitHub Pages, which needs no database, no environment
+and no running application: the schema modules' only Prisma imports are
+`import type`, so building the document boots nothing. A parameter the
+reference describes is one the API enforces, because they are the same object.
+Response schemas are the exception: what leaves a service is a Prisma row, not
+a parsed Zod value, so each response schema is pinned to its model by two
+type-level assignments that fail to compile if the two diverge.
 
 No schema accepts `organizationId`. It is never taken from the client; it
 comes from `req.auth` after membership has been verified.
@@ -371,7 +374,7 @@ See [ADR-21](adr/0021-multi-stage-dockerfile-one-image-both-processes.md).
 
 ## Not here yet
 
-Nothing is deployed. There is no
+Nothing is deployed but the reference, which is static files. There is no
 concurrency control on updates: two clients writing the same task is
 last-write-wins, and optimistic locking is the intended fix. Nothing
 prevents the last `OWNER` of an organization leaving it. An attachment

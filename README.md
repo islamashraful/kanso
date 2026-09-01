@@ -4,8 +4,9 @@ A multi-tenant task and project management API.
 
 **Kanso** (簡素) is the Japanese design principle of simplicity through elimination.
 
-> Early development. Nothing is deployed yet, so the API reference runs
-> locally at `/reference` rather than anywhere public.
+> Early development. Nothing is deployed, so the published reference at
+> <https://islamashraful.github.io/kanso/> documents an API that has to be run
+> locally before its requests go anywhere.
 > [`docs/architecture.md`](docs/architecture.md) describes how the system is
 > put together.
 
@@ -59,7 +60,9 @@ bun test                         # needs Docker running
 
 ## Documentation
 
-- `/reference` — the API reference, generated from the request schemas
+- [`islamashraful.github.io/kanso`](https://islamashraful.github.io/kanso/) — the
+  API reference, generated from the request schemas and republished on every
+  push to `main`; the same page is served at `/reference` by a running server
 - [`docs/architecture.md`](docs/architecture.md) — how the system is put together
 - [`docs/adr/`](docs/adr/) — architecture decision records: what was decided, and why
 - [`docs/writing.md`](docs/writing.md) — documentation conventions
